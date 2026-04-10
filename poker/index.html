@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Poker Calculator</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root {
+  --felt: #1a6b3c;
+  --felt-dark: #145230;
+  --felt-border: #0d3a22;
+  --gold: #d4a843;
+  --card-bg: #fff;
+  --red: #e74c3c;
+  --bg: var(--tg-theme-bg-color, #0d1117);
+  --text: var(--tg-theme-text-color, #e6edf3);
+  --hint: var(--tg-theme-hint-color, #8b949e);
+  --btn: var(--tg-theme-button-color, #d4a843);
+  --btn-text: var(--tg-theme-button-text-color, #000);
+  --secondary-bg: var(--tg-theme-secondary-bg-color, #161b22);
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body { font-family:-apple-system,system-ui,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; padding:8px; padding-bottom:120px; }
+h2 { font-size:15px; color:var(--gold); margin:12px 0 6px; text-transform:uppercase; letter-spacing:1px; }
+
+/* Card slots */
+.slots { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin:6px 0; }
+.slot {
+  width:52px; height:72px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+  font-size:22px; font-weight:700; cursor:pointer; position:relative;
+  background:var(--felt-dark); border:2px dashed var(--felt); color:var(--hint); transition:.15s;
+}
+.slot.filled { background:var(--card-bg); border:2px solid #888; color:#000; box-shadow:0 2px 8px #0008; }
+.slot.filled.red { color:var(--red); }
+.slot.active { border-color:var(--gold); box-shadow:0 0 12px #d4a84366; }
+.slot .remove { position:absolute; top:-6px; right:-6px; width:18px; height:18px; border-radius:50%; background:#e74c3c; color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; }
+.slot-label { font-size:10px; position:absolute; bottom:-16px; color:var(--hint); white-space:nowrap; }
+
+/* Card picker */
+#picker { display:none; background:var(--secondary-bg); border-radius:12px; padding:10px; margin:8px 0; border:1px solid #333; }
+#picker.open { display:block; }
+.rank-row, .suit-row { display:flex; gap:4px; justify-content:center; flex-wrap:wrap; margin:3px 0; }
+.rank-btn, .suit-btn {
+  min-width:34px; height:36px; border-radius:6px; border:1px solid #444; background:#222; color:var(--text);
+  font-size:15px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:.1s;
+}
+.rank-btn.sel { background:var(--gold); color:#000; border-color:var(--gold); }
+.suit-btn.sel { border-width:2px; }
+.suit-btn[data-s="h"],.suit-btn[data-s="d"] { color:var(--red); }
+.suit-btn[data-s="s"],.suit-btn[data-s="c"] { color:#fff; }
+.rank-btn.used, .suit-btn.used { opacity:.25; pointer-events:none; }
+
+/* Stage */
+.stage { text-align:center; font-size:13px; color:var(--hint); margin:4px 0; }
+.stage b { color:var(--gold); font-size:15px; }
+
+/* Opponents */
+.opp-row { display:flex; gap:6px; justify-content:center; margin:8px 0; }
+.opp-btn {
+  width:36px; height:36px; border-radius:50%; border:2px solid #444; background:transparent; color:var(--text);
+  font-size:15px; font-weight:700; cursor:pointer; transition:.15s;
+}
+.opp-btn.sel { background:var(--gold); color:#000; border-color:var(--gold); }
+
+/* Calculate */
+.calc-btn {
+  display:block; width:100%; padding:14px; border:none; border-radius:10px; font-size:16px; font-weight:700;
+  background:var(--btn); color:var(--btn-text); cursor:pointer; margin:10px 0; text-transform:uppercase; letter-spacing:1px;
+}
+.calc-btn:disabled { opacity:.4; }
+
+/* Results */
+#results { background:var(--felt-dark); border-radius:12px; padding:12px; border:1px solid var(--felt); display:none; }
+#results.show { display:block; }
+.win-rate { text-align:center; font-size:28px; font-weight:800; color:var(--gold); margin:6px 0; }
+.win-label { text-align:center; font-size:12px; color:var(--hint); }
+.hand-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-top:10px; }
+.hand-row { display:flex; justify-content:space-between; padding:5px 8px; background:#0003; border-radius:6px; font-size:13px; }
+.hand-row .pct { color:var(--gold); font-weight:600; }
+.hand-row .bar { flex:1; margin:0 8px; height:4px; background:#333; border-radius:2px; align-self:center; position:relative; overflow:hidden; }
+.hand-row .bar-fill { position:absolute; left:0; top:0; height:100%; background:var(--gold); border-radius:2px; transition:width .3s; }
+.hand-grid { grid-template-columns:1fr; }
+#simInfo { text-align:center; font-size:11px; color:var(--hint); margin-top:6px; }
+</style>
+</head>
+<body>
+
+<h2>🃏 Твои карты</h2>
+<div class="slots" id="holeSlots"></div>
+
+<h2>📋 Стол</h2>
+<div class="slots" id="boardSlots"></div>
+<div class="stage" id="stageLabel"></div>
+
+<div id="picker">
+  <div class="rank-row" id="rankRow"></div>
+  <div class="suit-row" id="suitRow"></div>
+</div>
+
+<h2>👥 Оппоненты</h2>
+<div class="opp-row" id="oppRow"></div>
+
+<button class="calc-btn" id="calcBtn" disabled>Рассчитать</button>
+
+<div id="results">
+  <div class="win-label">Вероятность выигрыша</div>
+  <div class="win-rate" id="winRate">—</div>
+  <div class="win-label" id="tieRate"></div>
+  <div style="margin-top:8px">
+    <div class="win-label" style="margin-bottom:6px">Вероятности комбинаций</div>
+    <div class="hand-grid" id="handGrid"></div>
+  </div>
+  <div id="simInfo"></div>
+</div>
+
+<script>
+// ========== DATA ==========
+const RANKS = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
+const SUITS = [{s:'s',sym:'♠'},{s:'h',sym:'♥'},{s:'d',sym:'♦'},{s:'c',sym:'♣'}];
+const HAND_NAMES = ['High Card','Pair','Two Pair','Three of a Kind','Straight','Flush','Full House','Four of a Kind','Straight Flush','Royal Flush'];
+
+let holeCards = [null,null];
+let boardCards = [null,null,null,null,null];
+let activeSlot = null; // {type:'hole'|'board', idx:number}
+let selRank = null;
+let numOpp = 2;
+
+// ========== UI INIT ==========
+function initSlots() {
+  const h = document.getElementById('holeSlots');
+  const b = document.getElementById('boardSlots');
+  h.innerHTML = '';
+  b.innerHTML = '';
+  for(let i=0;i<2;i++) {
+    const d = mkSlot('hole',i,holeCards[i]);
+    h.appendChild(d);
+  }
+  for(let i=0;i<5;i++) {
+    const d = mkSlot('board',i,boardCards[i]);
+    b.appendChild(d);
+  }
+  updateStage();
+  updateCalcBtn();
+}
+
+function mkSlot(type,idx,card) {
+  const d = document.createElement('div');
+  d.className = 'slot' + (card?' filled':'') + (card && isRed(card)?' red':'');
+  if(activeSlot && activeSlot.type===type && activeSlot.idx===idx) d.classList.add('active');
+  d.innerHTML = card ? cardDisplay(card) : '+';
+  if(card) {
+    const rm = document.createElement('div');
+    rm.className='remove'; rm.textContent='×';
+    rm.onclick=(e)=>{e.stopPropagation(); removeCard(type,idx);};
+    d.appendChild(rm);
+  }
+  d.onclick=()=>selectSlot(type,idx);
+  return d;
+}
+
+function cardDisplay(c) { return RANKS[c.r] + SUITS.find(s=>s.s===c.s).sym; }
+function isRed(c) { return c.s==='h'||c.s==='d'; }
+
+function selectSlot(type,idx) {
+  activeSlot={type,idx};
+  selRank=null;
+  initSlots();
+  openPicker();
+}
+
+function removeCard(type,idx) {
+  if(type==='hole') holeCards[idx]=null;
+  else boardCards[idx]=null;
+  initSlots();
+  updatePicker();
+  hideResults();
+}
+
+function updateStage() {
+  const n = boardCards.filter(c=>c).length;
+  const labels = ['Preflop','Preflop','Preflop','Flop','Turn','River'];
+  document.getElementById('stageLabel').innerHTML = 'Этап: <b>'+labels[n]+'</b>';
+}
+
+// ========== PICKER ==========
+function openPicker() {
+  document.getElementById('picker').classList.add('open');
+  renderPicker();
+}
+
+function renderPicker() {
+  const used = getUsedCards();
+  const rr = document.getElementById('rankRow');
+  const sr = document.getElementById('suitRow');
+  rr.innerHTML=''; sr.innerHTML='';
+  RANKS.forEach((r,ri)=>{
+    const b = document.createElement('button');
+    b.className='rank-btn'+(selRank===ri?' sel':'');
+    b.textContent=r;
+    b.onclick=()=>{selRank=ri; renderPicker();};
+    rr.appendChild(b);
+  });
+  SUITS.forEach(su=>{
+    const b = document.createElement('button');
+    b.className='suit-btn';
+    b.dataset.s=su.s;
+    b.textContent=su.sym;
+    b.style.fontSize='20px';
+    if(selRank!==null) {
+      const key=selRank+'-'+su.s;
+      if(used.has(key)) b.classList.add('used');
+      b.onclick=()=>{ if(!used.has(key)) pickCard(selRank,su.s); };
+    } else {
+      b.style.opacity='.4';
+    }
+    sr.appendChild(b);
+  });
+}
+function updatePicker(){ if(document.getElementById('picker').classList.contains('open')) renderPicker(); }
+
+function getUsedCards() {
+  const s = new Set();
+  holeCards.forEach(c=>{ if(c) s.add(c.r+'-'+c.s); });
+  boardCards.forEach(c=>{ if(c) s.add(c.r+'-'+c.s); });
+  return s;
+}
+
+function pickCard(r,s) {
+  if(!activeSlot) return;
+  const card={r,s};
+  if(activeSlot.type==='hole') holeCards[activeSlot.idx]=card;
+  else {
+    // enforce order: can't place turn without flop etc
+    const idx = activeSlot.idx;
+    if(idx>=1 && !boardCards[idx-1] && idx!==0) {
+      // find first empty
+      const first = boardCards.indexOf(null);
+      if(first>=0 && first<5) boardCards[first]=card;
+    } else {
+      boardCards[idx]=card;
+    }
+  }
+  // advance to next empty slot
+  advanceSlot();
+  selRank=null;
+  initSlots();
+  updatePicker();
+  hideResults();
+}
+
+function advanceSlot() {
+  if(!activeSlot) return;
+  // find next empty
+  const order = [{type:'hole',idx:0},{type:'hole',idx:1},{type:'board',idx:0},{type:'board',idx:1},{type:'board',idx:2},{type:'board',idx:3},{type:'board',idx:4}];
+  const cur = order.findIndex(o=>o.type===activeSlot.type&&o.idx===activeSlot.idx);
+  for(let i=cur+1;i<order.length;i++){
+    const o=order[i];
+    const arr=o.type==='hole'?holeCards:boardCards;
+    if(!arr[o.idx]){activeSlot=o;return;}
+  }
+  activeSlot=null;
+  document.getElementById('picker').classList.remove('open');
+}
+
+// ========== OPPONENTS ==========
+(function initOpp(){
+  const row=document.getElementById('oppRow');
+  for(let i=1;i<=8;i++){
+    const b=document.createElement('button');
+    b.className='opp-btn'+(i===numOpp?' sel':'');
+    b.textContent=i;
+    b.onclick=()=>{numOpp=i; document.querySelectorAll('.opp-btn').forEach((x,j)=>x.classList.toggle('sel',j+1===i)); hideResults();};
+    row.appendChild(b);
+  }
+})();
+
+// ========== CALC BUTTON ==========
+function updateCalcBtn() {
+  const have2 = holeCards[0]&&holeCards[1];
+  document.getElementById('calcBtn').disabled=!have2;
+}
+document.getElementById('calcBtn').onclick=calculate;
+
+function hideResults(){ document.getElementById('results').classList.remove('show'); }
+
+// ========== POKER MATH ==========
+function cardId(r,s) { return r*4+['s','h','d','c'].indexOf(s); }
+function cardR(id) { return id>>2; }
+function cardS(id) { return id&3; }
+
+function evaluateHand(ids) {
+  // ids: array of 5-7 card ids, returns {rank:0-9, val:comparable}
+  // Generate all 5-card combos if >5
+  const combos = ids.length<=5 ? [ids] : getCombos(ids,5);
+  let best=null;
+  for(const c of combos){
+    const ev = eval5(c);
+    if(!best||ev.val>best.val) best=ev;
+  }
+  return best;
+}
+
+function getCombos(arr,k) {
+  const result=[];
+  function bt(start,cur){
+    if(cur.length===k){result.push([...cur]);return;}
+    for(let i=start;i<arr.length;i++){cur.push(arr[i]);bt(i+1,cur);cur.pop();}
+  }
+  bt(0,[]);
+  return result;
+}
+
+function eval5(c) {
+  const rs=c.map(cardR).sort((a,b)=>a-b);
+  const ss=c.map(cardS);
+  const flush=ss.every(s=>s===ss[0]);
+  // straight check
+  let straight=false, hiStraight=rs[4];
+  if(rs[4]-rs[0]===4 && new Set(rs).size===5) straight=true;
+  // wheel: A-2-3-4-5
+  if(rs[0]===0&&rs[1]===1&&rs[2]===2&&rs[3]===3&&rs[4]===12){straight=true;hiStraight=3;}
+
+  const counts={};
+  rs.forEach(r=>{counts[r]=(counts[r]||0)+1;});
+  const groups=Object.entries(counts).map(([r,n])=>({r:+r,n})).sort((a,b)=>b.n-a.n||b.r-a.r);
+
+  let rank, val;
+  if(straight&&flush&&rs[0]===8) { rank=9; val=pack(9,14); } // royal
+  else if(straight&&flush) { rank=8; val=pack(8,hiStraight); }
+  else if(groups[0].n===4) { rank=7; val=pack(7,groups[0].r,groups[1].r); }
+  else if(groups[0].n===3&&groups[1].n===2) { rank=6; val=pack(6,groups[0].r,groups[1].r); }
+  else if(flush) { rank=5; val=pack(5,...rs.slice().reverse()); }
+  else if(straight) { rank=4; val=pack(4,hiStraight); }
+  else if(groups[0].n===3) { rank=3; val=pack(3,groups[0].r,...groups.slice(1).map(g=>g.r).sort((a,b)=>b-a)); }
+  else if(groups[0].n===2&&groups[1].n===2) {
+    const p=groups.filter(g=>g.n===2).map(g=>g.r).sort((a,b)=>b-a);
+    const k=groups.find(g=>g.n===1).r;
+    rank=2; val=pack(2,...p,k);
+  }
+  else if(groups[0].n===2) {
+    const kickers=groups.filter(g=>g.n===1).map(g=>g.r).sort((a,b)=>b-a);
+    rank=1; val=pack(1,groups[0].r,...kickers);
+  }
+  else { rank=0; val=pack(0,...rs.slice().reverse()); }
+
+  return {rank,val};
+}
+
+function pack(rank,...vals) {
+  let v=rank*Math.pow(15,6);
+  vals.forEach((x,i)=>{v+=x*Math.pow(15,5-i);});
+  return v;
+}
+
+// ========== MONTE CARLO ==========
+function calculate() {
+  const btn=document.getElementById('calcBtn');
+  btn.textContent='Считаю...'; btn.disabled=true;
+
+  setTimeout(()=>{
+    const known=[];
+    const used=new Set();
+    const hole=[cardId(holeCards[0].r,holeCards[0].s),cardId(holeCards[1].r,holeCards[1].s)];
+    hole.forEach(c=>used.add(c));
+    const board=[];
+    boardCards.forEach(c=>{if(c){const id=cardId(c.r,c.s);board.push(id);used.add(id);}});
+
+    const deck=[];
+    for(let i=0;i<52;i++) if(!used.has(i)) deck.push(i);
+
+    const ITERS = board.length>=4 ? 20000 : 10000;
+    let wins=0, ties=0, total=0;
+    const handCounts=new Array(10).fill(0);
+
+    for(let it=0;it<ITERS;it++){
+      // shuffle remaining deck (Fisher-Yates partial)
+      const d=[...deck];
+      const need=(5-board.length)+numOpp*2;
+      for(let i=d.length-1;i>=d.length-need&&i>0;i--){
+        const j=Math.random()*(i+1)|0;
+        [d[i],d[j]]=[d[j],d[i]];
+      }
+      let ptr=d.length-1;
+      const simBoard=[...board];
+      while(simBoard.length<5) simBoard.push(d[ptr--]);
+
+      const myCards=[...hole,...simBoard];
+      const myEval=evaluateHand(myCards);
+      handCounts[myEval.rank]++;
+
+      let won=true, tied=false;
+      for(let o=0;o<numOpp;o++){
+        const oHole=[d[ptr--],d[ptr--]];
+        const oEval=evaluateHand([...oHole,...simBoard]);
+        if(oEval.val>myEval.val){won=false;tied=false;break;}
+        if(oEval.val===myEval.val) tied=true;
+      }
+      if(won&&!tied) wins++;
+      else if(won&&tied) ties++;
+      total++;
+    }
+
+    // render
+    const res=document.getElementById('results');
+    res.classList.add('show');
+    document.getElementById('winRate').textContent=(wins/total*100).toFixed(1)+'%';
+    document.getElementById('tieRate').textContent='Ничья: '+(ties/total*100).toFixed(1)+'% · Проигрыш: '+((total-wins-ties)/total*100).toFixed(1)+'%';
+
+    const grid=document.getElementById('handGrid');
+    grid.innerHTML='';
+    for(let i=9;i>=0;i--){
+      const pct=(handCounts[i]/total*100);
+      const row=document.createElement('div');
+      row.className='hand-row';
+      row.innerHTML=`<span>${HAND_NAMES[i]}</span><div class="bar"><div class="bar-fill" style="width:${Math.min(pct*2,100)}%"></div></div><span class="pct">${pct.toFixed(1)}%</span>`;
+      grid.appendChild(row);
+    }
+    document.getElementById('simInfo').textContent=`Monte Carlo: ${ITERS.toLocaleString()} симуляций`;
+
+    btn.textContent='РАССЧИТАТЬ'; btn.disabled=false;
+    res.scrollIntoView({behavior:'smooth'});
+  },50);
+}
+
+// ========== INIT ==========
+initSlots();
+try { Telegram.WebApp.expand(); Telegram.WebApp.ready(); } catch(e){}
+</script>
+</body>
+</html>
