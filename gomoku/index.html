@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>Gomoku — Miss.41</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#0a0a0f;--panel:#111120;--border:#2a2a4a;--green:#00ff88;--pink:#ff2d78;--blue:#00d4ff;--purple:#b06aff;--text:#e0e0ff;--dim:#6060a0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Courier New',monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center;overflow-x:hidden;-webkit-user-select:none;user-select:none}
+.screen{display:none;flex-direction:column;align-items:center;width:100%;max-width:440px;padding:20px 16px;gap:18px}
+.screen.active{display:flex}
+.logo h1{font-size:28px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,var(--green),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center}
+.logo p{color:var(--dim);font-size:11px;letter-spacing:2px;margin-top:4px;text-align:center}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px;width:100%;box-shadow:0 0 20px rgba(0,212,255,0.05)}
+.card h2{font-size:12px;letter-spacing:2px;color:var(--blue);text-transform:uppercase}
+input[type="text"]{background:#0d0d1f;border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:18px;padding:12px 14px;outline:none;width:100%;letter-spacing:4px;text-align:center}
+input:focus{border-color:var(--blue);box-shadow:0 0 8px rgba(0,212,255,0.3)}
+button{border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;letter-spacing:2px;padding:12px 18px;text-transform:uppercase;transition:all .2s;width:100%}
+.btn-green{background:linear-gradient(135deg,var(--green),#00a866);color:#000;box-shadow:0 0 16px rgba(0,255,136,0.3)}
+.btn-pink{background:transparent;border:1px solid var(--pink);color:var(--pink)}
+.btn-blue{background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;box-shadow:0 0 16px rgba(0,212,255,0.3)}
+button:active{transform:scale(0.97)}
+.status{font-size:12px;color:var(--dim);text-align:center;min-height:20px}
+
+/* Waiting */
+.room-code{font-size:36px;font-weight:900;letter-spacing:8px;color:var(--green);text-shadow:0 0 20px rgba(0,255,136,0.5);text-align:center;cursor:pointer}
+.slot{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--panel);font-size:13px}
+.slot .sym{font-weight:900;font-size:16px;width:24px;text-align:center}
+.sym-X{color:var(--green)}.sym-O{color:var(--pink)}
+.slot-empty{color:var(--dim);font-style:italic}
+
+/* Game */
+#hud{width:100%;max-width:640px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+#turn-text{font-size:14px;font-weight:700;letter-spacing:1px}
+#room-badge{font-size:10px;color:var(--dim);cursor:pointer}
+#game-status{font-size:12px;color:var(--dim);text-align:center;padding:6px;min-height:28px;letter-spacing:1px}
+#canvas-wrap{overflow:auto;max-width:100vw;max-height:calc(100vh - 140px);cursor:crosshair}
+canvas{display:block}
+
+/* Overlay */
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:100;align-items:center;justify-content:center}
+#overlay.visible{display:flex}
+#overlay-box{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:30px 26px;text-align:center;max-width:320px;width:92%;display:flex;flex-direction:column;gap:14px;box-shadow:0 0 50px rgba(0,212,255,0.15)}
+#overlay-title{font-size:24px;font-weight:900;letter-spacing:3px}
+#overlay-sub{font-size:13px;color:var(--dim);line-height:1.5}
+
+/* Toast */
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--blue);border-radius:8px;padding:8px 20px;font-size:12px;color:var(--blue);z-index:200;display:none;letter-spacing:1px;box-shadow:0 0 16px rgba(0,212,255,0.3)}
+
+.pulse{animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</head>
+<body>
+
+<!-- LOBBY -->
+<div id="lobby" class="screen active">
+  <div class="logo">
+    <h1>GOMOKU</h1>
+    <p>MISS.41 · 5 IN A ROW · ONLINE</p>
+  </div>
+  <div class="card">
+    <h2>🎮 Создать комнату</h2>
+    <button class="btn-green" onclick="doCreate()">СОЗДАТЬ</button>
+  </div>
+  <div class="card">
+    <h2>🔗 Войти по коду</h2>
+    <input type="text" id="code-input" placeholder="0000" maxlength="4" inputmode="numeric"
+           oninput="this.value=this.value.replace(/\D/g,'')"
+           onkeydown="if(event.key==='Enter')doJoin()"/>
+    <button class="btn-pink" onclick="doJoin()">ВОЙТИ</button>
+  </div>
+  <div id="lobby-status" class="status"></div>
+</div>
+
+<!-- WAITING -->
+<div id="waiting" class="screen">
+  <h3 style="font-size:14px;letter-spacing:2px;color:var(--blue)">⏳ ОЖИДАНИЕ СОПЕРНИКА</h3>
+  <div id="w-code" class="room-code" onclick="copyCode()">——</div>
+  <p style="font-size:11px;color:var(--dim)">Нажми на код чтобы скопировать</p>
+  <div id="w-slots" style="width:100%;display:flex;flex-direction:column;gap:6px"></div>
+  <div id="w-status" class="status pulse">Поделись кодом с другом...</div>
+  <button class="btn-pink" onclick="goLobby()" style="font-size:11px;width:auto;padding:8px 20px">← Выйти</button>
+</div>
+
+<!-- GAME -->
+<div id="game" class="screen" style="padding:0;gap:0">
+  <div id="hud">
+    <div id="turn-text">...</div>
+    <div id="room-badge" onclick="copyCode()">📋 —</div>
+  </div>
+  <div id="game-status"></div>
+  <div id="canvas-wrap"><canvas id="board"></canvas></div>
+</div>
+
+<!-- OVERLAY -->
+<div id="overlay">
+  <div id="overlay-box">
+    <div id="overlay-title">—</div>
+    <div id="overlay-sub">—</div>
+    <button class="btn-blue" onclick="doRematch()">РЕВАНШ</button>
+    <button class="btn-pink" onclick="goLobby()" style="border:1px solid var(--pink)">В ЛОББИ</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ═══ CONFIG ═══
+const WS_URL = 'wss://gomoku-miss41.fly.dev';
+
+// ═══ Telegram ═══
+const tg = window.Telegram?.WebApp;
+if(tg){tg.ready();tg.expand()}
+const myName = tg?.initDataUnsafe?.user?.first_name || 'Player_' + Math.random().toString(36).slice(2,5).toUpperCase();
+
+// ═══ State ═══
+let ws = null;
+let mySymbol = null;
+let roomCode = null;
+let board = [];
+let turn = null;
+let gameOver = false;
+let gameActive = false;
+let players = [];
+let lastMove = null;
+
+// ═══ Board config ═══
+const N = 19, CELL = 30, PAD = 18;
+const SIZE = PAD*2 + CELL*(N-1);
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+canvas.width = SIZE; canvas.height = SIZE;
+
+const COLORS = {
+  X: {stroke:'#00ff88',glow:'rgba(0,255,136,0.7)',bg:'rgba(0,255,136,0.1)'},
+  O: {stroke:'#ff2d78',glow:'rgba(255,45,120,0.7)',bg:'rgba(255,45,120,0.1)'},
+};
+
+// ═══ WebSocket ═══
+function connect(onOpen) {
+  if(ws && ws.readyState <= 1) { onOpen?.(); return; }
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => onOpen?.();
+  ws.onclose = () => { ws = null; };
+  ws.onerror = () => toast('⚠️ Ошибка соединения');
+  ws.onmessage = (e) => {
+    try { handleMsg(JSON.parse(e.data)); } catch(err) { console.error(err); }
+  };
+}
+
+function wsSend(obj) {
+  if(ws?.readyState === 1) ws.send(JSON.stringify(obj));
+}
+
+// ═══ Actions ═══
+function doCreate() {
+  document.getElementById('lobby-status').textContent = 'Подключаемся...';
+  connect(() => {
+    wsSend({action:'create', name: myName});
+  });
+}
+
+function doJoin() {
+  const code = document.getElementById('code-input').value.trim();
+  if(code.length !== 4) { document.getElementById('lobby-status').textContent = 'Введи 4-значный код'; return; }
+  document.getElementById('lobby-status').textContent = 'Подключаемся...';
+  connect(() => {
+    wsSend({action:'join', code, name: myName});
+  });
+}
+
+function doRematch() { wsSend({action:'rematch'}); }
+
+// ═══ Message handler ═══
+function handleMsg(msg) {
+  switch(msg.type) {
+    case 'created':
+      mySymbol = msg.symbol;
+      roomCode = msg.code;
+      break;
+    case 'joined':
+      mySymbol = msg.symbol;
+      roomCode = msg.code;
+      break;
+    case 'error':
+      toast('⚠️ ' + msg.message);
+      document.getElementById('lobby-status').textContent = msg.message;
+      return;
+    case 'move':
+      lastMove = {row: msg.row, col: msg.col};
+      break;
+    case 'rematch':
+      lastMove = null;
+      document.getElementById('overlay').classList.remove('visible');
+      break;
+    case 'player_left':
+      toast('👋 ' + msg.message);
+      break;
+  }
+
+  // Apply state fields
+  if(msg.board !== undefined) board = msg.board;
+  if(msg.turn !== undefined) turn = msg.turn;
+  if(msg.game_over !== undefined) gameOver = msg.game_over;
+  if(msg.game_active !== undefined) gameActive = msg.game_active;
+  if(msg.players !== undefined) players = msg.players;
+  if(msg.code !== undefined) roomCode = msg.code;
+
+  // Decide screen
+  if(gameActive || gameOver) {
+    showScreen('game');
+    document.getElementById('room-badge').textContent = '📋 ' + roomCode;
+    updateHUD();
+    drawBoard();
+    if(gameOver && msg.winner !== undefined) showResult(msg.winner);
+  } else if(roomCode) {
+    showScreen('waiting');
+    document.getElementById('w-code').textContent = roomCode;
+    updateSlots();
+  }
+}
+
+// ═══ Screens ═══
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function goLobby() {
+  document.getElementById('overlay').classList.remove('visible');
+  if(ws) { ws.close(); ws = null; }
+  mySymbol = null; roomCode = null; board = []; gameOver = false; gameActive = false; players = []; lastMove = null;
+  showScreen('lobby');
+  document.getElementById('lobby-status').textContent = '';
+  document.getElementById('code-input').value = '';
+  drawBoard();
+}
+
+// ═══ Waiting slots ═══
+function updateSlots() {
+  const el = document.getElementById('w-slots');
+  el.innerHTML = '';
+  ['X','O'].forEach(sym => {
+    const p = players.find(x => x.symbol === sym);
+    const div = document.createElement('div');
+    div.className = 'slot';
+    div.innerHTML = `<div class="sym sym-${sym}">${sym}</div><div>${p ? `<b>${p.name}</b>` : '<span class="slot-empty">ожидание...</span>'}</div>`;
+    el.appendChild(div);
+  });
+}
+
+// ═══ HUD ═══
+function updateHUD() {
+  const el = document.getElementById('turn-text');
+  if(gameOver) { el.textContent = ''; return; }
+  const mine = turn === mySymbol;
+  const c = COLORS[turn]?.stroke || '#fff';
+  el.innerHTML = mine
+    ? `<span style="color:${c};text-shadow:0 0 10px ${c}">▶ ТВОЙ ХОД (${turn})</span>`
+    : `<span style="color:var(--dim)">Ход ${turn}...</span>`;
+  document.getElementById('game-status').textContent = mine ? '⚡ Ставь камень!' : `⏳ Ждём ход ${turn}...`;
+}
+
+// ═══ Canvas ═══
+function col2x(c){return PAD+c*CELL} function row2y(r){return PAD+r*CELL}
+
+function drawBoard() {
+  ctx.clearRect(0,0,SIZE,SIZE);
+  ctx.fillStyle='#0d0d1a';ctx.fillRect(0,0,SIZE,SIZE);
+  for(let i=0;i<N;i++){
+    const edge=i===0||i===N-1;
+    ctx.strokeStyle=edge?'rgba(80,80,160,0.6)':'rgba(80,80,160,0.22)';
+    ctx.lineWidth=edge?1.5:0.8;
+    ctx.beginPath();ctx.moveTo(col2x(0),row2y(i));ctx.lineTo(col2x(N-1),row2y(i));ctx.stroke();
+    ctx.beginPath();ctx.moveTo(col2x(i),row2y(0));ctx.lineTo(col2x(i),row2y(N-1));ctx.stroke();
+  }
+  [3,9,15].forEach(r=>[3,9,15].forEach(c=>{
+    ctx.beginPath();ctx.arc(col2x(c),row2y(r),2.5,0,Math.PI*2);ctx.fillStyle='rgba(100,100,200,0.45)';ctx.fill();
+  }));
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const sym=board[r]?.[c];
+    if(sym) drawPiece(r,c,sym,lastMove&&lastMove.row===r&&lastMove.col===c);
+  }
+}
+
+function drawPiece(r,c,sym,isLast){
+  const x=col2x(c),y=row2y(r),rad=CELL*0.40;
+  const col=COLORS[sym]||{stroke:'#fff',glow:'rgba(255,255,255,0.5)',bg:'rgba(255,255,255,0.1)'};
+  ctx.save();
+  if(isLast){ctx.shadowColor=col.glow;ctx.shadowBlur=22}
+  ctx.beginPath();ctx.arc(x,y,rad,0,Math.PI*2);ctx.fillStyle=col.bg;ctx.fill();
+  ctx.strokeStyle=col.stroke;ctx.lineWidth=isLast?2.5:1.5;ctx.stroke();ctx.shadowBlur=0;
+  ctx.fillStyle=col.stroke;ctx.font=`bold ${Math.round(rad*1.1)}px 'Courier New',monospace`;
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(sym,x,y+1);
+  ctx.restore();
+}
+
+// ═══ Hover ═══
+canvas.addEventListener('mousemove',(e)=>{
+  if(gameOver||turn!==mySymbol)return;
+  const{row,col}=getPos(e);if(row<0||row>=N||col<0||col>=N)return;
+  drawBoard();
+  if(!board[row]?.[col]){
+    ctx.save();ctx.globalAlpha=0.3;ctx.beginPath();
+    ctx.arc(col2x(col),row2y(row),CELL*0.38,0,Math.PI*2);
+    ctx.fillStyle=COLORS[mySymbol].stroke;ctx.fill();ctx.restore();
+  }
+});
+
+// ═══ Click ═══
+canvas.addEventListener('click',(e)=>{
+  if(gameOver||turn!==mySymbol)return;
+  const{row,col}=getPos(e);
+  if(row<0||row>=N||col<0||col>=N)return;
+  if(board[row]?.[col])return;
+  if(tg)tg.HapticFeedback?.impactOccurred('light');
+  wsSend({action:'move',row,col});
+});
+
+canvas.addEventListener('touchend',(e)=>{
+  e.preventDefault();
+  const t=e.changedTouches[0];
+  canvas.dispatchEvent(new MouseEvent('click',{clientX:t.clientX,clientY:t.clientY}));
+},{passive:false});
+
+function getPos(e){
+  const rect=canvas.getBoundingClientRect();
+  const sx=canvas.width/rect.width, sy=canvas.height/rect.height;
+  const mx=(e.clientX-rect.left)*sx, my=(e.clientY-rect.top)*sy;
+  return{col:Math.round((mx-PAD)/CELL),row:Math.round((my-PAD)/CELL)};
+}
+
+// ═══ Result overlay ═══
+function showResult(winner){
+  const title=document.getElementById('overlay-title');
+  const sub=document.getElementById('overlay-sub');
+  if(winner==='draw'){
+    title.textContent='🤝 НИЧЬЯ';title.style.color='var(--purple)';
+    sub.textContent='Доска заполнена.';
+  } else if(winner===mySymbol){
+    title.textContent='🏆 ПОБЕДА!';title.style.color=COLORS[winner].stroke;
+    sub.textContent='Красавчик)';
+    if(tg)tg.HapticFeedback?.notificationOccurred('success');
+  } else {
+    title.textContent='💀 ПОРАЖЕНИЕ';title.style.color='var(--pink)';
+    sub.textContent='Бывает. Давай реванш?';
+    if(tg)tg.HapticFeedback?.notificationOccurred('error');
+  }
+  document.getElementById('overlay').classList.add('visible');
+}
+
+// ═══ Utils ═══
+function copyCode(){
+  if(!roomCode)return;
+  navigator.clipboard?.writeText(roomCode).catch(()=>{});
+  toast('Скопировано: '+roomCode);
+}
+
+let toastTimer;
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.style.display='block';
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{el.style.display='none'},2800);
+}
+
+drawBoard();
+</script>
+</body>
+</html>
