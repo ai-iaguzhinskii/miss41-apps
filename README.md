@@ -1,2 +1,7 @@
-# miss41-apps
-Miss.41 Telegram Mini Apps
+# Miss.41 Mini Apps
+
+GitHub Pages URL: https://ai-iaguzhinskii.github.io/miss41-apps/
+
+## Apps
+- Dice: /dice/
+- Poker: /poker/
