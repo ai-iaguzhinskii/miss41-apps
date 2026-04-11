@@ -16,7 +16,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 #toolbar .sep{flex:1;min-width:4px}
 #canvasWrap{flex:1;position:relative;min-height:0}
 canvas{display:block;width:100%;height:100%}
-#props{background:var(--surface);border-top:1px solid #2a2a4a;padding:12px 16px;max-height:35vh;overflow-y:auto;flex-shrink:0;display:none}
+#props{background:var(--surface);border-top:1px solid #2a2a4a;padding:12px 16px 20px;max-height:45vh;overflow-y:auto;-webkit-overflow-scrolling:touch;flex-shrink:0;display:none;position:fixed;bottom:0;left:0;right:0;z-index:20}
 #props.open{display:block}
 #props h3{font-size:14px;color:var(--accent);margin-bottom:8px}
 .prop-row{margin-bottom:10px}
@@ -105,13 +105,24 @@ function calcProbs() {
       const pn = nodes.find(x => x.id === pe.from);
       n.prob = pe.cpT * pn.prob + pe.cpF * (1 - pn.prob);
     } else {
-      // Noisy-OR
-      let prod = 1;
-      parents.forEach(pe => {
-        const pn = nodes.find(x => x.id === pe.from);
-        prod *= (1 - pe.cpT * pn.prob);
-      });
-      n.prob = 1 - prod;
+      // Full enumeration over all 2^N parent state combinations
+      // For each combo: P(C|combo) = average of P(C|Pi=state_i) across all parents
+      const np = parents.length;
+      const combos = 1 << np;
+      let total = 0;
+      for (let mask = 0; mask < combos; mask++) {
+        let comboProb = 1;
+        let cpSum = 0;
+        for (let j = 0; j < np; j++) {
+          const pe = parents[j];
+          const pn = nodes.find(x => x.id === pe.from);
+          const parentTrue = (mask >> j) & 1;
+          comboProb *= parentTrue ? pn.prob : (1 - pn.prob);
+          cpSum += parentTrue ? pe.cpT : pe.cpF;
+        }
+        total += comboProb * (cpSum / np);
+      }
+      n.prob = total;
     }
     n.prob = Math.max(0, Math.min(1, n.prob));
   });
@@ -381,7 +392,7 @@ function onDown(e) {
   const eg = edgeAt(p.x, p.y);
   if (eg) { selectEdge(eg); return; }
 
-  // Deselect
+  // Deselect — only close props on canvas tap, not on panel scroll
   selectNode(null); selectEdge(null);
   if (connectMode) {
     connectMode = false; connectSource = null;
@@ -412,6 +423,11 @@ canvas.addEventListener('mouseup', onUp);
 canvas.addEventListener('touchstart', onDown, { passive: false });
 canvas.addEventListener('touchmove', onMove, { passive: false });
 canvas.addEventListener('touchend', onUp);
+
+// Prevent props panel touch events from reaching canvas
+propsEl.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+propsEl.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
+propsEl.addEventListener('touchend', e => e.stopPropagation(), { passive: true });
 
 // Toolbar
 document.getElementById('btnAdd').addEventListener('click', () => {
