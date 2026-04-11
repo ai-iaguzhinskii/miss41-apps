@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Bayes Calculator</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#1a1a2e;--card:#16213e;--accent:#7c3aed;--accent2:#6366f1;--text:#e2e8f0;--text2:#94a3b8;--border:#334155;--red:#ef4444;--yellow:#eab308;--green:#22c55e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);padding:12px;padding-bottom:80px;min-height:100vh}
+h1{font-size:20px;text-align:center;margin-bottom:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.card{background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px;border:1px solid var(--border)}
+.card-title{font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+label{font-size:13px;color:var(--text2);display:block;margin-bottom:4px}
+.slider-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.slider-row input[type=range]{flex:1;accent-color:var(--accent);height:6px}
+.slider-row input[type=number]{width:58px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 6px;font-size:14px;text-align:center}
+input[type=number]::-webkit-inner-spin-button{opacity:1}
+input[type=text]{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:14px;margin-bottom:6px}
+.btn{padding:8px 14px;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;transition:opacity .15s}
+.btn:active{opacity:.7}
+.btn-accent{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text2)}
+.btn-danger{background:transparent;border:1px solid var(--red);color:var(--red);padding:4px 10px;font-size:12px}
+.btn-sm{padding:6px 10px;font-size:12px}
+.presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.presets .btn{flex:1;min-width:90px;font-size:12px;padding:8px 6px}
+.evidence-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.evidence-header span{font-size:14px;font-weight:600}
+.result-box{text-align:center;padding:16px}
+.result-big{font-size:48px;font-weight:800;margin:8px 0}
+.bar-chart{margin-top:10px}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+.bar-label{width:70px;text-align:right;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-wrap{flex:1;height:22px;background:var(--bg);border-radius:6px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:6px;transition:width .3s,background .3s;min-width:2px}
+.bar-val{width:42px;font-weight:600;font-size:12px}
+.actions{display:flex;gap:8px;margin-top:8px}
+.actions .btn{flex:1}
+#evidenceList .card{border-left:3px solid var(--accent)}
+</style>
+</head>
+<body>
+<h1>🧮 Bayes Calculator</h1>
+
+<div class="card">
+ <div class="card-title">Prior Probability</div>
+ <div class="slider-row">
+  <input type="range" id="priorSlider" min="0" max="100" step="0.1" value="50">
+  <input type="number" id="priorNum" min="0" max="100" step="0.1" value="50">
+  <span style="font-size:13px">%</span>
+ </div>
+</div>
+
+<div class="presets">
+ <button class="btn btn-outline btn-sm" onclick="loadPreset('med')">🏥 Медтест</button>
+ <button class="btn btn-outline btn-sm" onclick="loadPreset('poker')">🃏 Покер</button>
+ <button class="btn btn-outline btn-sm" onclick="loadPreset('spam')">📧 Спам</button>
+</div>
+
+<div id="evidenceList"></div>
+
+<div class="actions">
+ <button class="btn btn-accent" onclick="addEvidence()">+ Add Evidence</button>
+ <button class="btn btn-outline" onclick="resetAll()">Reset</button>
+</div>
+
+<div class="card result-box" id="resultCard">
+ <div class="card-title">Posterior Probability</div>
+ <div class="result-big" id="resultBig">50.0%</div>
+ <div class="bar-chart" id="barChart"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let evidences = [];
+let eid = 0;
+
+function sync(slider, num) {
+ slider.oninput = () => { num.value = slider.value; recalc(); };
+ num.oninput = () => { let v = Math.max(0, Math.min(100, parseFloat(num.value)||0)); slider.value = v; recalc(); };
+}
+sync($('priorSlider'), $('priorNum'));
+
+function addEvidence(name='', peh=80, penh=20) {
+ const id = eid++;
+ evidences.push({id, name, peh, penh});
+ renderEvidences();
+ recalc();
+}
+
+function removeEvidence(id) {
+ evidences = evidences.filter(e => e.id !== id);
+ renderEvidences();
+ recalc();
+}
+
+function renderEvidences() {
+ const el = $('evidenceList');
+ el.innerHTML = evidences.map((e, i) => `
+  <div class="card" data-id="${e.id}">
+   <div class="evidence-header">
+    <span>Evidence #${i+1}</span>
+    <button class="btn btn-danger" onclick="removeEvidence(${e.id})">✕</button>
+   </div>
+   <input type="text" placeholder="Evidence name..." value="${esc(e.name)}" onchange="updE(${e.id},'name',this.value)">
+   <label>P(E|H) — if hypothesis true</label>
+   <div class="slider-row">
+    <input type="range" min="0" max="100" step="0.1" value="${e.peh}" oninput="updE(${e.id},'peh',this.value);this.nextElementSibling.value=this.value">
+    <input type="number" min="0" max="100" step="0.1" value="${e.peh}" oninput="updE(${e.id},'peh',this.value);this.previousElementSibling.value=this.value">
+    <span style="font-size:13px">%</span>
+   </div>
+   <label>P(E|¬H) — if hypothesis false</label>
+   <div class="slider-row">
+    <input type="range" min="0" max="100" step="0.1" value="${e.penh}" oninput="updE(${e.id},'penh',this.value);this.nextElementSibling.value=this.value">
+    <input type="number" min="0" max="100" step="0.1" value="${e.penh}" oninput="updE(${e.id},'penh',this.value);this.previousElementSibling.value=this.value">
+    <span style="font-size:13px">%</span>
+   </div>
+  </div>
+ `).join('');
+}
+
+function esc(s){return s.replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+
+function updE(id, key, val) {
+ const e = evidences.find(x => x.id === id);
+ if (!e) return;
+ e[key] = key === 'name' ? val : parseFloat(val) || 0;
+ recalc();
+}
+
+function barColor(p) {
+ if (p < 0.5) { const t = p / 0.5; return `rgb(${Math.round(239*(1-t)+234*t)},${Math.round(68*(1-t)+179*t)},${Math.round(68*(1-t)+8*t)})`; }
+ const t = (p - 0.5) / 0.5;
+ return `rgb(${Math.round(234*(1-t)+34*t)},${Math.round(179*(1-t)+197*t)},${Math.round(8*(1-t)+94*t)})`;
+}
+
+function recalc() {
+ let prior = (parseFloat($('priorSlider').value) || 0) / 100;
+ const steps = [{label: 'Prior', val: prior}];
+ for (const e of evidences) {
+  const peh = (e.peh || 0) / 100;
+  const penh = (e.penh || 0) / 100;
+  const denom = peh * prior + penh * (1 - prior);
+  prior = denom === 0 ? 0 : (peh * prior) / denom;
+  steps.push({label: e.name || `E#${evidences.indexOf(e)+1}`, val: prior});
+ }
+ const final = prior;
+ $('resultBig').textContent = (final * 100).toFixed(1) + '%';
+ $('resultBig').style.color = barColor(final);
+
+ $('barChart').innerHTML = steps.map(s => {
+  const pct = (s.val * 100).toFixed(1);
+  return `<div class="bar-row">
+   <div class="bar-label" title="${esc(s.label)}">${esc(s.label)}</div>
+   <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${barColor(s.val)}"></div></div>
+   <div class="bar-val">${pct}%</div>
+  </div>`;
+ }).join('');
+}
+
+function loadPreset(p) {
+ evidences = []; eid = 0;
+ if (p === 'med') { $('priorSlider').value = $('priorNum').value = 1; addEvidence('Test positive', 95, 5); }
+ if (p === 'poker') { $('priorSlider').value = $('priorNum').value = 10; addEvidence('Evidence', 80, 20); }
+ if (p === 'spam') { $('priorSlider').value = $('priorNum').value = 30; addEvidence('Spam signal', 90, 5); }
+ recalc();
+}
+
+function resetAll() {
+ evidences = []; eid = 0;
+ $('priorSlider').value = $('priorNum').value = 50;
+ renderEvidences(); recalc();
+}
+
+recalc();
+try { Telegram.WebApp.ready(); Telegram.WebApp.expand(); } catch(e){}
+</script>
+</body>
+</html>
