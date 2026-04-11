@@ -297,9 +297,9 @@ function renderProps() {
     parents.forEach((pe, i) => {
       const pn = nodes.find(x => x.id === pe.from);
       const pName = pn ? pn.name : '?';
-      h += `<div class="prop-row"><label>P(T | ${esc(pName)}=T) <span class="val">${Math.round(pe.cpT*100)}%</span></label>`;
+      h += `<div class="prop-row"><label>Если «${esc(pName)}» случилось <span class="val">${Math.round(pe.cpT*100)}%</span></label>`;
       h += `<input type="range" min="0" max="100" value="${Math.round(pe.cpT*100)}" data-ei="${i}" data-k="cpT" class="cpSlider"></div>`;
-      h += `<div class="prop-row"><label>P(T | ${esc(pName)}=F) <span class="val">${Math.round(pe.cpF*100)}%</span></label>`;
+      h += `<div class="prop-row"><label>Если «${esc(pName)}» НЕ случилось <span class="val">${Math.round(pe.cpF*100)}%</span></label>`;
       h += `<input type="range" min="0" max="100" value="${Math.round(pe.cpF*100)}" data-ei="${i}" data-k="cpF" class="cpSlider"></div>`;
     });
   }
