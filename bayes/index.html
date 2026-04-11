@@ -8,7 +8,7 @@
 <style>
 :root{--bg:#1a1a2e;--card:#16213e;--accent:#7c3aed;--accent2:#6366f1;--text:#e2e8f0;--text2:#94a3b8;--border:#334155;--red:#ef4444;--yellow:#eab308;--green:#22c55e}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);padding:12px;padding-bottom:80px;min-height:100vh}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);padding:12px;padding-bottom:20px;min-height:100vh}
 h1{font-size:20px;text-align:center;margin-bottom:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .card{background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px;border:1px solid var(--border)}
 .card-title{font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
@@ -30,10 +30,13 @@ input[type=text]{width:100%;background:var(--bg);border:1px solid var(--border);
 .evidence-header span{font-size:14px;font-weight:600}
 .result-box{text-align:center;padding:16px}
 .result-big{font-size:48px;font-weight:800;margin:8px 0}
-#graphCanvas{width:100%;height:150px;display:block;margin-top:10px;border-radius:8px}
 .actions{display:flex;gap:8px;margin-top:8px}
 .actions .btn{flex:1}
-#evidenceList .card{border-left:3px solid var(--accent)}
+#evidenceList .card{border-left:3px solid var(--accent);transition:opacity .2s}
+#evidenceList .card.disabled{opacity:.45;border-left-color:#555}
+.graph-wrap{position:relative;margin-top:10px}
+#graphCanvas{width:100%;height:300px;display:block;border-radius:8px;cursor:pointer}
+.graph-hint{text-align:center;font-size:11px;color:var(--text2);margin-top:4px}
 </style>
 </head>
 <body>
@@ -65,13 +68,19 @@ input[type=text]{width:100%;background:var(--bg);border:1px solid var(--border);
 <div class="card result-box" id="resultCard">
  <div class="card-title">Posterior Probability</div>
  <div class="result-big" id="resultBig">50.0%</div>
- <canvas id="graphCanvas"></canvas>
+ <div class="graph-wrap">
+  <canvas id="graphCanvas"></canvas>
+  <div class="graph-hint">Нажми на узел чтобы включить/отключить</div>
+ </div>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
 let evidences = [];
 let eid = 0;
+// animation opacity per evidence id
+const nodeOpacity = {};
+let animFrame = null;
 
 function sync(slider, num) {
  slider.oninput = () => { num.value = slider.value; recalc(); };
@@ -81,21 +90,55 @@ sync($('priorSlider'), $('priorNum'));
 
 function addEvidence(name='', peh=80, penh=20) {
  const id = eid++;
- evidences.push({id, name, peh, penh});
+ evidences.push({id, name, peh, penh, enabled: true});
+ nodeOpacity[id] = 1;
  renderEvidences();
  recalc();
 }
 
 function removeEvidence(id) {
  evidences = evidences.filter(e => e.id !== id);
+ delete nodeOpacity[id];
  renderEvidences();
  recalc();
+}
+
+function toggleEvidence(id) {
+ const e = evidences.find(x => x.id === id);
+ if (!e) return;
+ e.enabled = !e.enabled;
+ animateOpacity(id, e.enabled ? 1 : 0.3);
+ syncCardOpacity();
+ recalc();
+}
+
+function animateOpacity(id, target) {
+ const start = nodeOpacity[id] ?? (target === 1 ? 0.3 : 1);
+ const startTime = performance.now();
+ const dur = 200;
+ function tick(now) {
+  const t = Math.min(1, (now - startTime) / dur);
+  const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+  nodeOpacity[id] = start + (target - start) * ease;
+  drawGraph();
+  if (t < 1) requestAnimationFrame(tick);
+ }
+ requestAnimationFrame(tick);
+}
+
+function syncCardOpacity() {
+ const cards = document.querySelectorAll('#evidenceList .card');
+ cards.forEach(c => {
+  const id = parseInt(c.dataset.id);
+  const e = evidences.find(x => x.id === id);
+  if (e) c.classList.toggle('disabled', !e.enabled);
+ });
 }
 
 function renderEvidences() {
  const el = $('evidenceList');
  el.innerHTML = evidences.map((e, i) => `
-  <div class="card" data-id="${e.id}">
+  <div class="card${e.enabled?'':' disabled'}" data-id="${e.id}">
    <div class="evidence-header">
     <span>Evidence #${i+1}</span>
     <button class="btn btn-danger" onclick="removeEvidence(${e.id})">✕</button>
@@ -126,98 +169,245 @@ function updE(id, key, val) {
  recalc();
 }
 
-function barColor(p) {
- if (p < 0.5) { const t = p / 0.5; return `rgb(${Math.round(239*(1-t)+234*t)},${Math.round(68*(1-t)+179*t)},${Math.round(68*(1-t)+8*t)})`; }
+function probColor(p) {
+ if (p < 0.5) {
+  const t = p / 0.5;
+  return `rgb(${Math.round(239*(1-t)+234*t)},${Math.round(68*(1-t)+179*t)},${Math.round(68*(1-t)+8*t)})`;
+ }
  const t = (p - 0.5) / 0.5;
  return `rgb(${Math.round(234*(1-t)+34*t)},${Math.round(179*(1-t)+197*t)},${Math.round(8*(1-t)+94*t)})`;
 }
 
-function redrawGraph(steps) {
+// --- Graph state ---
+let graphNodes = []; // {x, y, r, label, val, type:'prior'|'evidence'|'posterior', evidenceId, enabled}
+
+function layoutNodes(steps) {
  const canvas = $('graphCanvas');
- const container = canvas.parentElement;
+ const w = canvas.clientWidth;
+ const h = 300;
+ const R = 38;
+ const nodes = [];
+
+ if (steps.length === 0) return nodes;
+
+ // Prior node — left
+ nodes.push({x: 60, y: h/2, r: R, label: 'Prior', val: steps[0].val, type: 'prior', enabled: true});
+
+ // Posterior — right
+ const postStep = steps[steps.length - 1];
+ nodes.push({x: w - 60, y: h/2, r: R+4, label: 'Posterior', val: postStep.val, type: 'posterior', enabled: true});
+
+ // Evidence nodes in between — spread in 2D
+ const evSteps = steps.slice(1, steps.length - 1); // intermediate steps (after each evidence)
+ const evCount = evidences.length;
+ if (evCount > 0) {
+  const startX = 130;
+  const endX = w - 140;
+  const spanX = endX - startX;
+  for (let i = 0; i < evCount; i++) {
+   const e = evidences[i];
+   const t = evCount === 1 ? 0.5 : i / (evCount - 1);
+   const x = startX + t * spanX;
+   // Stagger Y position for visual interest
+   const yOff = evCount <= 2 ? 0 : (i % 2 === 0 ? -35 : 35);
+   const y = h/2 + yOff;
+   // Find the step value for this evidence (only if enabled, otherwise show its raw likelihood ratio)
+   const stepIdx = getEnabledStepIndex(i);
+   const val = stepIdx !== null ? steps[stepIdx].val : 0;
+   nodes.push({
+    x, y, r: R - 2, label: e.name || `E#${i+1}`,
+    val: e.enabled ? val : 0.5,
+    type: 'evidence', evidenceId: e.id, enabled: e.enabled
+   });
+  }
+ }
+
+ return nodes;
+}
+
+function getEnabledStepIndex(evIdx) {
+ // Return the step index corresponding to this evidence in the active chain
+ let count = 0;
+ for (let i = 0; i <= evIdx; i++) {
+  if (evidences[i].enabled) count++;
+ }
+ return evidences[evIdx].enabled ? count : null;
+}
+
+function drawGraph() {
+ const canvas = $('graphCanvas');
  const dpr = window.devicePixelRatio || 1;
- const w = container.clientWidth - 28;
- const h = 150;
+ const w = canvas.clientWidth;
+ const h = 300;
  canvas.width = w * dpr;
  canvas.height = h * dpr;
- canvas.style.width = w + 'px';
  canvas.style.height = h + 'px';
  const ctx = canvas.getContext('2d');
  ctx.scale(dpr, dpr);
- ctx.clearRect(0, 0, w, h);
 
- if (!steps.length) return;
- const n = steps.length;
- const minR = 20, maxR = 50;
- const padX = maxR + 10;
- const spacing = n === 1 ? 0 : (w - padX * 2) / (n - 1);
- const cy = h / 2;
+ // Background
+ ctx.fillStyle = '#0f0f23';
+ ctx.fillRect(0, 0, w, h);
 
- const nodes = steps.map((s, i) => {
-  const x = n === 1 ? w / 2 : padX + i * spacing;
-  const r = minR + (maxR - minR) * s.val;
-  return { x, r, ...s };
- });
+ if (graphNodes.length === 0) return;
 
- // arrows
- ctx.strokeStyle = '#94a3b8';
+ const priorNode = graphNodes[0];
+ const postNode = graphNodes[1];
+ const evNodes = graphNodes.slice(2);
+
+ // Draw arrows from Prior → active evidence nodes → Posterior
  ctx.lineWidth = 2;
- for (let i = 0; i < nodes.length - 1; i++) {
-  const a = nodes[i], b = nodes[i+1];
-  const x1 = a.x + a.r + 4, x2 = b.x - b.r - 4;
-  if (x2 <= x1) continue;
-  ctx.beginPath();
-  ctx.moveTo(x1, cy);
-  ctx.lineTo(x2, cy);
-  ctx.stroke();
-  // arrowhead
-  ctx.beginPath();
-  ctx.moveTo(x2, cy);
-  ctx.lineTo(x2 - 7, cy - 5);
-  ctx.lineTo(x2 - 7, cy + 5);
-  ctx.closePath();
-  ctx.fillStyle = '#94a3b8';
-  ctx.fill();
+ const activeEv = evNodes.filter(n => n.enabled);
+
+ // Arrows: prior → each active evidence
+ for (const en of activeEv) {
+  drawArrow(ctx, priorNode, en, nodeOpacity[en.evidenceId] ?? 1);
+ }
+ // Arrows: each active evidence → posterior
+ for (const en of activeEv) {
+  drawArrow(ctx, en, postNode, nodeOpacity[en.evidenceId] ?? 1);
+ }
+ // If no active evidence, prior → posterior directly
+ if (activeEv.length === 0) {
+  drawArrow(ctx, priorNode, postNode, 0.5);
  }
 
- // nodes
- for (const nd of nodes) {
-  ctx.beginPath();
-  ctx.arc(nd.x, cy, nd.r, 0, Math.PI * 2);
-  ctx.fillStyle = barColor(nd.val);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
+ // Draw nodes
+ // Evidence nodes first (behind prior/posterior)
+ for (const n of evNodes) {
+  const opacity = nodeOpacity[n.evidenceId] ?? 1;
+  drawNode(ctx, n, opacity);
+ }
+ // Prior & Posterior on top
+ drawNode(ctx, priorNode, 1);
+ drawNode(ctx, postNode, 1);
+}
 
-  // text
-  const pct = (nd.val * 100).toFixed(1) + '%';
-  ctx.fillStyle = '#fff';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const fs = Math.max(9, Math.min(12, nd.r * 0.45));
-  ctx.font = `600 ${fs}px -apple-system,sans-serif`;
-  ctx.fillText(nd.label.length > 8 ? nd.label.slice(0,7) + '…' : nd.label, nd.x, cy - fs * 0.45);
-  ctx.font = `700 ${fs}px -apple-system,sans-serif`;
-  ctx.fillText(pct, nd.x, cy + fs * 0.55);
+function drawArrow(ctx, from, to, opacity) {
+ const dx = to.x - from.x;
+ const dy = to.y - from.y;
+ const dist = Math.sqrt(dx*dx + dy*dy);
+ if (dist < from.r + to.r + 5) return;
+ const ux = dx/dist, uy = dy/dist;
+ const x1 = from.x + ux * (from.r + 4);
+ const y1 = from.y + uy * (from.r + 4);
+ const x2 = to.x - ux * (to.r + 8);
+ const y2 = to.y - uy * (to.r + 8);
+
+ ctx.save();
+ ctx.globalAlpha = opacity * 0.6;
+ ctx.strokeStyle = '#94a3b8';
+ ctx.lineWidth = 2;
+ ctx.beginPath();
+ ctx.moveTo(x1, y1);
+ ctx.lineTo(x2, y2);
+ ctx.stroke();
+
+ // Arrowhead
+ const ax = to.x - ux * (to.r + 4);
+ const ay = to.y - uy * (to.r + 4);
+ ctx.beginPath();
+ ctx.moveTo(ax, ay);
+ ctx.lineTo(ax - ux*8 + uy*5, ay - uy*8 - ux*5);
+ ctx.lineTo(ax - ux*8 - uy*5, ay - uy*8 + ux*5);
+ ctx.closePath();
+ ctx.fillStyle = '#94a3b8';
+ ctx.fill();
+ ctx.restore();
+}
+
+function drawNode(ctx, n, opacity) {
+ ctx.save();
+ ctx.globalAlpha = opacity;
+
+ // Circle fill
+ if (!n.enabled && n.type === 'evidence') {
+  ctx.fillStyle = '#555';
+ } else {
+  ctx.fillStyle = probColor(n.val);
+ }
+ ctx.beginPath();
+ ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+ ctx.fill();
+
+ // Border
+ ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+ ctx.lineWidth = 2;
+ ctx.stroke();
+
+ // Strikethrough for disabled
+ if (!n.enabled && n.type === 'evidence') {
+  ctx.strokeStyle = 'rgba(255,80,80,0.7)';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(n.x - n.r * 0.7, n.y - n.r * 0.7);
+  ctx.lineTo(n.x + n.r * 0.7, n.y + n.r * 0.7);
+  ctx.stroke();
+ }
+
+ // Text
+ ctx.fillStyle = '#fff';
+ ctx.textAlign = 'center';
+ ctx.textBaseline = 'middle';
+ const fs = 11;
+ let lbl = n.label;
+ if (lbl.length > 8) lbl = lbl.slice(0, 7) + '…';
+ ctx.font = `600 ${fs}px -apple-system,sans-serif`;
+ ctx.fillText(lbl, n.x, n.y - 7);
+ const pct = (n.val * 100).toFixed(1) + '%';
+ ctx.font = `700 ${fs+1}px -apple-system,sans-serif`;
+ ctx.fillText(pct, n.x, n.y + 8);
+
+ ctx.restore();
+}
+
+// --- Hit detection ---
+function handleCanvasClick(e) {
+ const canvas = $('graphCanvas');
+ const rect = canvas.getBoundingClientRect();
+ const x = (e.clientX ?? e.changedTouches[0].clientX) - rect.left;
+ const y = (e.clientY ?? e.changedTouches[0].clientY) - rect.top;
+
+ // Check evidence nodes (graphNodes[2+])
+ for (let i = 2; i < graphNodes.length; i++) {
+  const n = graphNodes[i];
+  const dx = x - n.x, dy = y - n.y;
+  if (dx*dx + dy*dy <= (n.r + 8) * (n.r + 8)) {
+   toggleEvidence(n.evidenceId);
+   return;
+  }
  }
 }
 
+$('graphCanvas').addEventListener('click', handleCanvasClick);
+$('graphCanvas').addEventListener('touchend', function(e) {
+ e.preventDefault();
+ handleCanvasClick(e);
+});
+
 function recalc() {
  let prior = (parseFloat($('priorSlider').value) || 0) / 100;
+ // Build steps only from enabled evidences
  const steps = [{label: 'Prior', val: prior}];
+ let p = prior;
  for (const e of evidences) {
+  if (!e.enabled) continue;
   const peh = (e.peh || 0) / 100;
   const penh = (e.penh || 0) / 100;
-  const denom = peh * prior + penh * (1 - prior);
-  prior = denom === 0 ? 0 : (peh * prior) / denom;
-  steps.push({label: e.name || `E#${evidences.indexOf(e)+1}`, val: prior});
+  const denom = peh * p + penh * (1 - p);
+  p = denom === 0 ? 0 : (peh * p) / denom;
+  steps.push({label: e.name || `E#${evidences.indexOf(e)+1}`, val: p});
  }
- const final = prior;
- $('resultBig').textContent = (final * 100).toFixed(1) + '%';
- $('resultBig').style.color = barColor(final);
+ // Posterior is the last step value
+ if (steps.length === 1) steps.push({label: 'Posterior', val: p});
+ else steps.push({label: 'Posterior', val: p});
 
- redrawGraph(steps);
+ const final = p;
+ $('resultBig').textContent = (final * 100).toFixed(1) + '%';
+ $('resultBig').style.color = probColor(final);
+
+ graphNodes = layoutNodes(steps);
+ drawGraph();
 }
 
 function loadPreset(p) {
@@ -227,10 +417,10 @@ function loadPreset(p) {
  if (p === 'spam') { $('priorSlider').value = $('priorNum').value = 30; addEvidence('Spam signal', 90, 5); }
  if (p === 'iran') {
   $('priorSlider').value = $('priorNum').value = 5;
-  addEvidence('Перемирие сорвалось', 80, 20);
-  addEvidence('Хуситы активизировались', 70, 25);
-  addEvidence('ОАЭ поддержали санкции', 65, 30);
-  addEvidence('Иранские ВМС у Ормуза', 75, 15);
+  addEvidence('Перемирие', 85, 15);
+  addEvidence('Хуситы', 75, 20);
+  addEvidence('ОАЭ санкц.', 70, 25);
+  addEvidence('ВМС Ормуз', 80, 10);
  }
  recalc();
 }
@@ -239,6 +429,23 @@ function resetAll() {
  evidences = []; eid = 0;
  $('priorSlider').value = $('priorNum').value = 50;
  renderEvidences(); recalc();
+}
+
+window.addEventListener('resize', () => { graphNodes = layoutNodes(buildSteps()); drawGraph(); });
+
+function buildSteps() {
+ let p = (parseFloat($('priorSlider').value) || 0) / 100;
+ const steps = [{label: 'Prior', val: p}];
+ for (const e of evidences) {
+  if (!e.enabled) continue;
+  const peh = (e.peh || 0) / 100;
+  const penh = (e.penh || 0) / 100;
+  const denom = peh * p + penh * (1 - p);
+  p = denom === 0 ? 0 : (peh * p) / denom;
+  steps.push({label: e.name || `E#${evidences.indexOf(e)+1}`, val: p});
+ }
+ steps.push({label: 'Posterior', val: p});
+ return steps;
 }
 
 recalc();
