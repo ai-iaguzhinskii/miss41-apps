@@ -457,17 +457,18 @@ function loadPreset() {
   selectNode(null); selectEdge(null);
 
   const cx = W / 2, cy = H / 2 - 20;
-  const n1 = addNode('Удар по ОАЭ', cx - 160, cy - 100, 0.05);
-  const n2 = addNode('Перемирие сорвано', cx + 120, cy - 100, 0.40);
-  const n3 = addNode('Хуситы активны', cx - 160, cy + 40, 0.60);
-  const n4 = addNode('ОАЭ vs Иран', cx + 120, cy + 40, 0.35);
-  const n5 = addNode('Риск удара', cx, cy + 150, 0.5);
+  // Root узлы — наблюдаемые факты
+  const n1 = addNode('Перемирие сорвано', cx - 180, cy - 120, 0.40);
+  const n2 = addNode('Хуситы активны', cx, cy - 120, 0.60);
+  const n3 = addNode('ОАЭ vs Иран', cx + 180, cy - 120, 0.35);
+  // Child узел — то что хотим посчитать
+  const n5 = addNode('Удар по ОАЭ', cx, cy + 100, 0.05);
 
   addEdge(n1.id, n5.id);
   addEdge(n2.id, n5.id);
   addEdge(n3.id, n5.id);
-  addEdge(n4.id, n5.id);
 
+  // Если факт случился — вероятность удара 80%, если нет — 5%
   edges.forEach(e => { if (e.to === n5.id) { e.cpT = 0.8; e.cpF = 0.05; } });
   draw();
 }
