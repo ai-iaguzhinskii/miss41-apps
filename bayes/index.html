@@ -1,455 +1,466 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Bayes Calculator</title>
+<title>Bayesian Network Editor</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-:root{--bg:#1a1a2e;--card:#16213e;--accent:#7c3aed;--accent2:#6366f1;--text:#e2e8f0;--text2:#94a3b8;--border:#334155;--red:#ef4444;--yellow:#eab308;--green:#22c55e}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);padding:12px;padding-bottom:20px;min-height:100vh}
-h1{font-size:20px;text-align:center;margin-bottom:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.card{background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px;border:1px solid var(--border)}
-.card-title{font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
-label{font-size:13px;color:var(--text2);display:block;margin-bottom:4px}
-.slider-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.slider-row input[type=range]{flex:1;accent-color:var(--accent);height:6px}
-.slider-row input[type=number]{width:58px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 6px;font-size:14px;text-align:center}
-input[type=number]::-webkit-inner-spin-button{opacity:1}
-input[type=text]{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:14px;margin-bottom:6px}
-.btn{padding:8px 14px;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;transition:opacity .15s}
-.btn:active{opacity:.7}
-.btn-accent{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
-.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text2)}
-.btn-danger{background:transparent;border:1px solid var(--red);color:var(--red);padding:4px 10px;font-size:12px}
-.btn-sm{padding:6px 10px;font-size:12px}
-.presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
-.presets .btn{flex:1;min-width:90px;font-size:12px;padding:8px 6px}
-.evidence-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-.evidence-header span{font-size:14px;font-weight:600}
-.result-box{text-align:center;padding:16px}
-.result-big{font-size:48px;font-weight:800;margin:8px 0}
-.actions{display:flex;gap:8px;margin-top:8px}
-.actions .btn{flex:1}
-#evidenceList .card{border-left:3px solid var(--accent);transition:opacity .2s}
-#evidenceList .card.disabled{opacity:.45;border-left-color:#555}
-.graph-wrap{position:relative;margin-top:10px}
-#graphCanvas{width:100%;height:300px;display:block;border-radius:8px;cursor:pointer}
-.graph-hint{text-align:center;font-size:11px;color:var(--text2);margin-top:4px}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--bg:#0f0f1a;--surface:#1a1a2e;--surface2:#252540;--accent:#7c5cfc;--accent2:#5c8afc;--text:#e0e0f0;--text2:#8888aa;--danger:#fc5c5c;--green:#4cdf8a;--radius:12px}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column;touch-action:none}
+#toolbar{display:flex;gap:8px;padding:8px 12px;background:var(--surface);border-bottom:1px solid #2a2a4a;flex-shrink:0;flex-wrap:wrap;align-items:center}
+#toolbar button{background:var(--surface2);color:var(--text);border:1px solid #3a3a5a;border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;white-space:nowrap}
+#toolbar button:active{background:var(--accent);border-color:var(--accent)}
+#toolbar button.active{background:var(--accent);border-color:var(--accent)}
+#toolbar .sep{flex:1;min-width:4px}
+#canvasWrap{flex:1;position:relative;min-height:0}
+canvas{display:block;width:100%;height:100%}
+#props{background:var(--surface);border-top:1px solid #2a2a4a;padding:12px 16px;max-height:35vh;overflow-y:auto;flex-shrink:0;display:none}
+#props.open{display:block}
+#props h3{font-size:14px;color:var(--accent);margin-bottom:8px}
+.prop-row{margin-bottom:10px}
+.prop-row label{display:block;font-size:12px;color:var(--text2);margin-bottom:3px}
+.prop-row input[type=text]{width:100%;background:var(--surface2);border:1px solid #3a3a5a;color:var(--text);padding:6px 10px;border-radius:6px;font-size:14px}
+.prop-row input[type=range]{width:100%;accent-color:var(--accent)}
+.prop-row .val{float:right;color:var(--accent);font-weight:600;font-size:12px}
+#deleteNodeBtn{background:var(--danger);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;margin-top:6px}
+#edgeDeleteBar{display:none;position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:var(--danger);color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;cursor:pointer;z-index:10;box-shadow:0 4px 16px rgba(0,0,0,.4)}
+#connectHint{display:none;position:absolute;top:50px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:6px 16px;border-radius:16px;font-size:12px;z-index:10;pointer-events:none}
 </style>
 </head>
 <body>
-<h1>🧮 Bayes Calculator</h1>
-
-<div class="card">
- <div class="card-title">Prior Probability</div>
- <div class="slider-row">
-  <input type="range" id="priorSlider" min="0" max="100" step="0.1" value="50">
-  <input type="number" id="priorNum" min="0" max="100" step="0.1" value="50">
-  <span style="font-size:13px">%</span>
- </div>
+<div id="toolbar">
+  <button id="btnAdd">+ Узел</button>
+  <button id="btnConnect">🔗</button>
+  <button id="btnPreset">🇮🇷 Пресет</button>
+  <div class="sep"></div>
+  <button id="btnReset">Reset</button>
 </div>
-
-<div class="presets">
- <button class="btn btn-outline btn-sm" onclick="loadPreset('med')">🏥 Медтест</button>
- <button class="btn btn-outline btn-sm" onclick="loadPreset('poker')">🃏 Покер</button>
- <button class="btn btn-outline btn-sm" onclick="loadPreset('spam')">📧 Спам</button>
- <button class="btn btn-outline btn-sm" onclick="loadPreset('iran')">🚀 Иран/ОАЭ</button>
+<div id="canvasWrap">
+  <canvas id="c"></canvas>
+  <div id="edgeDeleteBar" onclick="deleteSelectedEdge()">🗑 Удалить связь</div>
+  <div id="connectHint">Тапни на целевой узел</div>
 </div>
-
-<div id="evidenceList"></div>
-
-<div class="actions">
- <button class="btn btn-accent" onclick="addEvidence()">+ Add Evidence</button>
- <button class="btn btn-outline" onclick="resetAll()">Reset</button>
+<div id="props">
+  <div id="propsContent"></div>
 </div>
-
-<div class="card result-box" id="resultCard">
- <div class="card-title">Posterior Probability</div>
- <div class="result-big" id="resultBig">50.0%</div>
- <div class="graph-wrap">
-  <canvas id="graphCanvas"></canvas>
-  <div class="graph-hint">Нажми на узел чтобы включить/отключить</div>
- </div>
-</div>
-
 <script>
-const $ = id => document.getElementById(id);
-let evidences = [];
-let eid = 0;
-// animation opacity per evidence id
-const nodeOpacity = {};
-let animFrame = null;
+'use strict';
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('canvasWrap');
+const propsEl = document.getElementById('props');
+const propsCont = document.getElementById('propsContent');
+const edgeDelBar = document.getElementById('edgeDeleteBar');
+const connectHint = document.getElementById('connectHint');
 
-function sync(slider, num) {
- slider.oninput = () => { num.value = slider.value; recalc(); };
- num.oninput = () => { let v = Math.max(0, Math.min(100, parseFloat(num.value)||0)); slider.value = v; recalc(); };
+let W, H, dpr;
+let nodes = [], edges = [];
+let selectedNode = null, selectedEdge = null;
+let dragging = null, dragOff = {x:0,y:0};
+let connectMode = false, connectSource = null;
+let longPressTimer = null, longPressTriggered = false;
+let nextId = 1;
+
+const NODE_R = 22;
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  const r = wrap.getBoundingClientRect();
+  W = r.width; H = r.height;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
 }
-sync($('priorSlider'), $('priorNum'));
-
-function addEvidence(name='', peh=80, penh=20) {
- const id = eid++;
- evidences.push({id, name, peh, penh, enabled: true});
- nodeOpacity[id] = 1;
- renderEvidences();
- recalc();
-}
-
-function removeEvidence(id) {
- evidences = evidences.filter(e => e.id !== id);
- delete nodeOpacity[id];
- renderEvidences();
- recalc();
-}
-
-function toggleEvidence(id) {
- const e = evidences.find(x => x.id === id);
- if (!e) return;
- e.enabled = !e.enabled;
- animateOpacity(id, e.enabled ? 1 : 0.3);
- syncCardOpacity();
- recalc();
-}
-
-function animateOpacity(id, target) {
- const start = nodeOpacity[id] ?? (target === 1 ? 0.3 : 1);
- const startTime = performance.now();
- const dur = 200;
- function tick(now) {
-  const t = Math.min(1, (now - startTime) / dur);
-  const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
-  nodeOpacity[id] = start + (target - start) * ease;
-  drawGraph();
-  if (t < 1) requestAnimationFrame(tick);
- }
- requestAnimationFrame(tick);
-}
-
-function syncCardOpacity() {
- const cards = document.querySelectorAll('#evidenceList .card');
- cards.forEach(c => {
-  const id = parseInt(c.dataset.id);
-  const e = evidences.find(x => x.id === id);
-  if (e) c.classList.toggle('disabled', !e.enabled);
- });
-}
-
-function renderEvidences() {
- const el = $('evidenceList');
- el.innerHTML = evidences.map((e, i) => `
-  <div class="card${e.enabled?'':' disabled'}" data-id="${e.id}">
-   <div class="evidence-header">
-    <span>Evidence #${i+1}</span>
-    <button class="btn btn-danger" onclick="removeEvidence(${e.id})">✕</button>
-   </div>
-   <input type="text" placeholder="Evidence name..." value="${esc(e.name)}" onchange="updE(${e.id},'name',this.value)">
-   <label>P(E|H) — if hypothesis true</label>
-   <div class="slider-row">
-    <input type="range" min="0" max="100" step="0.1" value="${e.peh}" oninput="updE(${e.id},'peh',this.value);this.nextElementSibling.value=this.value">
-    <input type="number" min="0" max="100" step="0.1" value="${e.peh}" oninput="updE(${e.id},'peh',this.value);this.previousElementSibling.value=this.value">
-    <span style="font-size:13px">%</span>
-   </div>
-   <label>P(E|¬H) — if hypothesis false</label>
-   <div class="slider-row">
-    <input type="range" min="0" max="100" step="0.1" value="${e.penh}" oninput="updE(${e.id},'penh',this.value);this.nextElementSibling.value=this.value">
-    <input type="number" min="0" max="100" step="0.1" value="${e.penh}" oninput="updE(${e.id},'penh',this.value);this.previousElementSibling.value=this.value">
-    <span style="font-size:13px">%</span>
-   </div>
-  </div>
- `).join('');
-}
-
-function esc(s){return s.replace(/"/g,'&quot;').replace(/</g,'&lt;')}
-
-function updE(id, key, val) {
- const e = evidences.find(x => x.id === id);
- if (!e) return;
- e[key] = key === 'name' ? val : parseFloat(val) || 0;
- recalc();
-}
+window.addEventListener('resize', resize);
 
 function probColor(p) {
- if (p < 0.5) {
-  const t = p / 0.5;
-  return `rgb(${Math.round(239*(1-t)+234*t)},${Math.round(68*(1-t)+179*t)},${Math.round(68*(1-t)+8*t)})`;
- }
- const t = (p - 0.5) / 0.5;
- return `rgb(${Math.round(234*(1-t)+34*t)},${Math.round(179*(1-t)+197*t)},${Math.round(8*(1-t)+94*t)})`;
+  const r = Math.round(80 + 176 * p);
+  const g = Math.round(200 - 120 * p);
+  const b = Math.round(255 - 100 * p);
+  return `rgb(${r},${g},${b})`;
 }
 
-// --- Graph state ---
-let graphNodes = []; // {x, y, r, label, val, type:'prior'|'evidence'|'posterior', evidenceId, enabled}
-
-function layoutNodes(steps) {
- const canvas = $('graphCanvas');
- const w = canvas.clientWidth;
- const h = 300;
- const R = 38;
- const nodes = [];
-
- if (steps.length === 0) return nodes;
-
- // Prior node — left
- nodes.push({x: 60, y: h/2, r: R, label: 'Prior', val: steps[0].val, type: 'prior', enabled: true});
-
- // Posterior — right
- const postStep = steps[steps.length - 1];
- nodes.push({x: w - 60, y: h/2, r: R+4, label: 'Posterior', val: postStep.val, type: 'posterior', enabled: true});
-
- // Evidence nodes in between — spread in 2D
- const evSteps = steps.slice(1, steps.length - 1); // intermediate steps (after each evidence)
- const evCount = evidences.length;
- if (evCount > 0) {
-  const startX = 130;
-  const endX = w - 140;
-  const spanX = endX - startX;
-  for (let i = 0; i < evCount; i++) {
-   const e = evidences[i];
-   const t = evCount === 1 ? 0.5 : i / (evCount - 1);
-   const x = startX + t * spanX;
-   // Stagger Y position for visual interest
-   const yOff = evCount <= 2 ? 0 : (i % 2 === 0 ? -35 : 35);
-   const y = h/2 + yOff;
-   // Find the step value for this evidence (only if enabled, otherwise show its raw likelihood ratio)
-   const stepIdx = getEnabledStepIndex(i);
-   const val = stepIdx !== null ? steps[stepIdx].val : 0;
-   nodes.push({
-    x, y, r: R - 2, label: e.name || `E#${i+1}`,
-    val: e.enabled ? val : 0.5,
-    type: 'evidence', evidenceId: e.id, enabled: e.enabled
-   });
+function calcProbs() {
+  // Topological sort
+  const visited = new Set(), order = [];
+  function visit(id) {
+    if (visited.has(id)) return;
+    visited.add(id);
+    const pEdges = edges.filter(e => e.to === id);
+    pEdges.forEach(e => visit(e.from));
+    order.push(id);
   }
- }
+  nodes.forEach(n => visit(n.id));
 
- return nodes;
+  order.forEach(id => {
+    const n = nodes.find(x => x.id === id);
+    const parents = edges.filter(e => e.to === id);
+    if (parents.length === 0) {
+      n.prob = n.prior;
+    } else if (parents.length === 1) {
+      const pe = parents[0];
+      const pn = nodes.find(x => x.id === pe.from);
+      n.prob = pe.cpT * pn.prob + pe.cpF * (1 - pn.prob);
+    } else {
+      // Noisy-OR
+      let prod = 1;
+      parents.forEach(pe => {
+        const pn = nodes.find(x => x.id === pe.from);
+        prod *= (1 - pe.cpT * pn.prob);
+      });
+      n.prob = 1 - prod;
+    }
+    n.prob = Math.max(0, Math.min(1, n.prob));
+  });
 }
 
-function getEnabledStepIndex(evIdx) {
- // Return the step index corresponding to this evidence in the active chain
- let count = 0;
- for (let i = 0; i <= evIdx; i++) {
-  if (evidences[i].enabled) count++;
- }
- return evidences[evIdx].enabled ? count : null;
-}
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  calcProbs();
 
-function drawGraph() {
- const canvas = $('graphCanvas');
- const dpr = window.devicePixelRatio || 1;
- const w = canvas.clientWidth;
- const h = 300;
- canvas.width = w * dpr;
- canvas.height = h * dpr;
- canvas.style.height = h + 'px';
- const ctx = canvas.getContext('2d');
- ctx.scale(dpr, dpr);
+  // Draw edges
+  edges.forEach(e => {
+    const from = nodes.find(n => n.id === e.from);
+    const to = nodes.find(n => n.id === e.to);
+    if (!from || !to) return;
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+    const ux = dx/dist, uy = dy/dist;
+    const sx = from.x + ux * NODE_R, sy = from.y + uy * NODE_R;
+    const ex = to.x - ux * (NODE_R + 8), ey = to.y - uy * (NODE_R + 8);
 
- // Background
- ctx.fillStyle = '#0f0f23';
- ctx.fillRect(0, 0, w, h);
+    const isSel = selectedEdge === e;
+    ctx.strokeStyle = isSel ? '#fc5c5c' : '#5566aa';
+    ctx.lineWidth = isSel ? 3 : 2;
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
 
- if (graphNodes.length === 0) return;
+    // Arrowhead
+    const aLen = 10, aAng = 0.4;
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.beginPath();
+    ctx.moveTo(ex + ux * 8, ey + uy * 8);
+    ctx.lineTo(ex - ux * aLen + (-uy) * aLen * Math.sin(aAng), ey - uy * aLen + ux * aLen * Math.sin(aAng));
+    ctx.lineTo(ex - ux * aLen - (-uy) * aLen * Math.sin(aAng), ey - uy * aLen - ux * aLen * Math.sin(aAng));
+    ctx.closePath(); ctx.fill();
+  });
 
- const priorNode = graphNodes[0];
- const postNode = graphNodes[1];
- const evNodes = graphNodes.slice(2);
-
- // Draw arrows from Prior → active evidence nodes → Posterior
- ctx.lineWidth = 2;
- const activeEv = evNodes.filter(n => n.enabled);
-
- // Arrows: prior → each active evidence
- for (const en of activeEv) {
-  drawArrow(ctx, priorNode, en, nodeOpacity[en.evidenceId] ?? 1);
- }
- // Arrows: each active evidence → posterior
- for (const en of activeEv) {
-  drawArrow(ctx, en, postNode, nodeOpacity[en.evidenceId] ?? 1);
- }
- // If no active evidence, prior → posterior directly
- if (activeEv.length === 0) {
-  drawArrow(ctx, priorNode, postNode, 0.5);
- }
-
- // Draw nodes
- // Evidence nodes first (behind prior/posterior)
- for (const n of evNodes) {
-  const opacity = nodeOpacity[n.evidenceId] ?? 1;
-  drawNode(ctx, n, opacity);
- }
- // Prior & Posterior on top
- drawNode(ctx, priorNode, 1);
- drawNode(ctx, postNode, 1);
-}
-
-function drawArrow(ctx, from, to, opacity) {
- const dx = to.x - from.x;
- const dy = to.y - from.y;
- const dist = Math.sqrt(dx*dx + dy*dy);
- if (dist < from.r + to.r + 5) return;
- const ux = dx/dist, uy = dy/dist;
- const x1 = from.x + ux * (from.r + 4);
- const y1 = from.y + uy * (from.r + 4);
- const x2 = to.x - ux * (to.r + 8);
- const y2 = to.y - uy * (to.r + 8);
-
- ctx.save();
- ctx.globalAlpha = opacity * 0.6;
- ctx.strokeStyle = '#94a3b8';
- ctx.lineWidth = 2;
- ctx.beginPath();
- ctx.moveTo(x1, y1);
- ctx.lineTo(x2, y2);
- ctx.stroke();
-
- // Arrowhead
- const ax = to.x - ux * (to.r + 4);
- const ay = to.y - uy * (to.r + 4);
- ctx.beginPath();
- ctx.moveTo(ax, ay);
- ctx.lineTo(ax - ux*8 + uy*5, ay - uy*8 - ux*5);
- ctx.lineTo(ax - ux*8 - uy*5, ay - uy*8 + ux*5);
- ctx.closePath();
- ctx.fillStyle = '#94a3b8';
- ctx.fill();
- ctx.restore();
-}
-
-function drawNode(ctx, n, opacity) {
- ctx.save();
- ctx.globalAlpha = opacity;
-
- // Circle fill
- if (!n.enabled && n.type === 'evidence') {
-  ctx.fillStyle = '#555';
- } else {
-  ctx.fillStyle = probColor(n.val);
- }
- ctx.beginPath();
- ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
- ctx.fill();
-
- // Border
- ctx.strokeStyle = 'rgba(255,255,255,0.2)';
- ctx.lineWidth = 2;
- ctx.stroke();
-
- // Strikethrough for disabled
- if (!n.enabled && n.type === 'evidence') {
-  ctx.strokeStyle = 'rgba(255,80,80,0.7)';
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.moveTo(n.x - n.r * 0.7, n.y - n.r * 0.7);
-  ctx.lineTo(n.x + n.r * 0.7, n.y + n.r * 0.7);
-  ctx.stroke();
- }
-
- // Text
- ctx.fillStyle = '#fff';
- ctx.textAlign = 'center';
- ctx.textBaseline = 'middle';
- const fs = 11;
- let lbl = n.label;
- if (lbl.length > 8) lbl = lbl.slice(0, 7) + '…';
- ctx.font = `600 ${fs}px -apple-system,sans-serif`;
- ctx.fillText(lbl, n.x, n.y - 7);
- const pct = (n.val * 100).toFixed(1) + '%';
- ctx.font = `700 ${fs+1}px -apple-system,sans-serif`;
- ctx.fillText(pct, n.x, n.y + 8);
-
- ctx.restore();
-}
-
-// --- Hit detection ---
-function handleCanvasClick(e) {
- const canvas = $('graphCanvas');
- const rect = canvas.getBoundingClientRect();
- const x = (e.clientX ?? e.changedTouches[0].clientX) - rect.left;
- const y = (e.clientY ?? e.changedTouches[0].clientY) - rect.top;
-
- // Check evidence nodes (graphNodes[2+])
- for (let i = 2; i < graphNodes.length; i++) {
-  const n = graphNodes[i];
-  const dx = x - n.x, dy = y - n.y;
-  if (dx*dx + dy*dy <= (n.r + 8) * (n.r + 8)) {
-   toggleEvidence(n.evidenceId);
-   return;
+  // Draw connecting line
+  if (connectMode && connectSource && dragging === null) {
+    // just highlight source
+    const sn = nodes.find(n => n.id === connectSource);
+    if (sn) {
+      ctx.strokeStyle = 'rgba(124,92,252,0.5)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.arc(sn.x, sn.y, NODE_R + 6, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
   }
- }
+
+  // Draw nodes
+  nodes.forEach(n => {
+    const col = probColor(n.prob);
+    const isSel = selectedNode === n;
+
+    // Glow
+    if (isSel) {
+      ctx.shadowColor = 'rgba(124,92,252,0.6)';
+      ctx.shadowBlur = 16;
+    }
+
+    // Circle
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(n.x, n.y, NODE_R, 0, Math.PI * 2); ctx.fill();
+
+    if (isSel) {
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(n.x, n.y, NODE_R, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+
+    // Text
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(Math.round(n.prob * 100) + '%', n.x, n.y + 4);
+
+    // Label above
+    ctx.fillStyle = var_textCol(n);
+    ctx.font = '11px sans-serif';
+    ctx.fillText(n.name.length > 14 ? n.name.slice(0,13) + '…' : n.name, n.x, n.y - NODE_R - 6);
+  });
 }
 
-$('graphCanvas').addEventListener('click', handleCanvasClick);
-$('graphCanvas').addEventListener('touchend', function(e) {
- e.preventDefault();
- handleCanvasClick(e);
+function var_textCol(n) { return '#c0c0e0'; }
+
+function nodeAt(x, y) {
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const n = nodes[i];
+    const dx = x - n.x, dy = y - n.y;
+    if (dx*dx + dy*dy <= (NODE_R + 8) * (NODE_R + 8)) return n;
+  }
+  return null;
+}
+
+function edgeAt(x, y) {
+  let best = null, bestD = 14;
+  edges.forEach(e => {
+    const from = nodes.find(n => n.id === e.from);
+    const to = nodes.find(n => n.id === e.to);
+    if (!from || !to) return;
+    const d = ptSegDist(x, y, from.x, from.y, to.x, to.y);
+    if (d < bestD) { bestD = d; best = e; }
+  });
+  return best;
+}
+
+function ptSegDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx*dx + dy*dy;
+  if (len2 === 0) return Math.sqrt((px-ax)**2 + (py-ay)**2);
+  let t = ((px-ax)*dx + (py-ay)*dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const cx = ax + t*dx, cy = ay + t*dy;
+  return Math.sqrt((px-cx)**2 + (py-cy)**2);
+}
+
+function hasCycle(fromId, toId) {
+  // Would adding fromId->toId create a cycle?
+  const visited = new Set();
+  function dfs(id) {
+    if (id === fromId) return true;
+    if (visited.has(id)) return false;
+    visited.add(id);
+    return edges.filter(e => e.from === id).some(e => dfs(e.to));
+  }
+  return dfs(toId);
+}
+
+function addEdge(fromId, toId) {
+  if (fromId === toId) return;
+  if (edges.some(e => e.from === fromId && e.to === toId)) return;
+  if (hasCycle(fromId, toId)) return;
+  edges.push({ from: fromId, to: toId, cpT: 0.8, cpF: 0.1 });
+  draw();
+}
+
+function selectNode(n) {
+  selectedNode = n; selectedEdge = null;
+  edgeDelBar.style.display = 'none';
+  if (!n) { propsEl.classList.remove('open'); draw(); return; }
+  propsEl.classList.add('open');
+  renderProps();
+  draw();
+}
+
+function selectEdge(e) {
+  selectedEdge = e; selectedNode = null;
+  propsEl.classList.remove('open');
+  edgeDelBar.style.display = e ? 'block' : 'none';
+  draw();
+}
+
+function deleteSelectedEdge() {
+  if (!selectedEdge) return;
+  edges = edges.filter(e => e !== selectedEdge);
+  selectedEdge = null;
+  edgeDelBar.style.display = 'none';
+  draw();
+}
+
+function renderProps() {
+  const n = selectedNode;
+  if (!n) return;
+  const parents = edges.filter(e => e.to === n.id);
+  let h = `<h3>${parents.length ? 'Child' : 'Root'} Node</h3>`;
+  h += `<div class="prop-row"><label>Название</label><input type="text" id="pName" value="${esc(n.name)}"></div>`;
+
+  if (parents.length === 0) {
+    h += `<div class="prop-row"><label>P(True) <span class="val">${Math.round(n.prior*100)}%</span></label>`;
+    h += `<input type="range" min="0" max="100" value="${Math.round(n.prior*100)}" id="pPrior"></div>`;
+  } else {
+    parents.forEach((pe, i) => {
+      const pn = nodes.find(x => x.id === pe.from);
+      const pName = pn ? pn.name : '?';
+      h += `<div class="prop-row"><label>P(T | ${esc(pName)}=T) <span class="val">${Math.round(pe.cpT*100)}%</span></label>`;
+      h += `<input type="range" min="0" max="100" value="${Math.round(pe.cpT*100)}" data-ei="${i}" data-k="cpT" class="cpSlider"></div>`;
+      h += `<div class="prop-row"><label>P(T | ${esc(pName)}=F) <span class="val">${Math.round(pe.cpF*100)}%</span></label>`;
+      h += `<input type="range" min="0" max="100" value="${Math.round(pe.cpF*100)}" data-ei="${i}" data-k="cpF" class="cpSlider"></div>`;
+    });
+  }
+  h += `<button id="deleteNodeBtn" onclick="deleteNode(${n.id})">🗑 Удалить узел</button>`;
+  propsCont.innerHTML = h;
+
+  const nameIn = document.getElementById('pName');
+  if (nameIn) nameIn.addEventListener('input', () => { n.name = nameIn.value; draw(); });
+
+  const priorIn = document.getElementById('pPrior');
+  if (priorIn) priorIn.addEventListener('input', () => {
+    n.prior = priorIn.value / 100;
+    priorIn.previousElementSibling.querySelector('.val').textContent = priorIn.value + '%';
+    draw();
+  });
+
+  document.querySelectorAll('.cpSlider').forEach(sl => {
+    sl.addEventListener('input', () => {
+      const ei = +sl.dataset.ei, k = sl.dataset.k;
+      const pe = parents[ei];
+      if (pe) { pe[k] = sl.value / 100; sl.previousElementSibling.querySelector('.val').textContent = sl.value + '%'; draw(); }
+    });
+  });
+}
+
+function deleteNode(id) {
+  nodes = nodes.filter(n => n.id !== id);
+  edges = edges.filter(e => e.from !== id && e.to !== id);
+  if (selectedNode && selectedNode.id === id) selectNode(null);
+  draw();
+}
+
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+function addNode(name, x, y, prior) {
+  const n = { id: nextId++, name: name || 'Узел ' + nextId, x: x || 50 + Math.random() * (W - 100), y: y || 40 + Math.random() * (H - 80), prior: prior ?? 0.5, prob: prior ?? 0.5 };
+  nodes.push(n);
+  draw();
+  return n;
+}
+
+// Pointer handling
+function getXY(e) {
+  const r = canvas.getBoundingClientRect();
+  const t = e.touches ? e.touches[0] : e;
+  return { x: t.clientX - r.left, y: t.clientY - r.top };
+}
+
+function onDown(e) {
+  e.preventDefault();
+  const p = getXY(e);
+  longPressTriggered = false;
+
+  const n = nodeAt(p.x, p.y);
+  if (n) {
+    if (connectMode && connectSource && connectSource !== n.id) {
+      addEdge(connectSource, n.id);
+      connectSource = null;
+      connectMode = false;
+      document.getElementById('btnConnect').classList.remove('active');
+      connectHint.style.display = 'none';
+      selectNode(n);
+      renderProps();
+      return;
+    }
+    if (connectMode) {
+      connectSource = n.id;
+      connectHint.style.display = 'block';
+      draw();
+      return;
+    }
+    dragging = n;
+    dragOff.x = p.x - n.x; dragOff.y = p.y - n.y;
+    selectNode(n);
+
+    // Long press for connect
+    longPressTimer = setTimeout(() => {
+      longPressTriggered = true;
+      dragging = null;
+      connectMode = true;
+      connectSource = n.id;
+      document.getElementById('btnConnect').classList.add('active');
+      connectHint.style.display = 'block';
+      draw();
+    }, 500);
+    return;
+  }
+
+  // Check edge
+  const eg = edgeAt(p.x, p.y);
+  if (eg) { selectEdge(eg); return; }
+
+  // Deselect
+  selectNode(null); selectEdge(null);
+  if (connectMode) {
+    connectMode = false; connectSource = null;
+    document.getElementById('btnConnect').classList.remove('active');
+    connectHint.style.display = 'none';
+    draw();
+  }
+}
+
+function onMove(e) {
+  e.preventDefault();
+  if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+  if (!dragging) return;
+  const p = getXY(e);
+  dragging.x = p.x - dragOff.x;
+  dragging.y = p.y - dragOff.y;
+  draw();
+}
+
+function onUp(e) {
+  if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+  dragging = null;
+}
+
+canvas.addEventListener('mousedown', onDown);
+canvas.addEventListener('mousemove', onMove);
+canvas.addEventListener('mouseup', onUp);
+canvas.addEventListener('touchstart', onDown, { passive: false });
+canvas.addEventListener('touchmove', onMove, { passive: false });
+canvas.addEventListener('touchend', onUp);
+
+// Toolbar
+document.getElementById('btnAdd').addEventListener('click', () => {
+  const n = addNode();
+  selectNode(n);
 });
 
-function recalc() {
- let prior = (parseFloat($('priorSlider').value) || 0) / 100;
- // Build steps only from enabled evidences
- const steps = [{label: 'Prior', val: prior}];
- let p = prior;
- for (const e of evidences) {
-  if (!e.enabled) continue;
-  const peh = (e.peh || 0) / 100;
-  const penh = (e.penh || 0) / 100;
-  const denom = peh * p + penh * (1 - p);
-  p = denom === 0 ? 0 : (peh * p) / denom;
-  steps.push({label: e.name || `E#${evidences.indexOf(e)+1}`, val: p});
- }
- // Posterior is the last step value
- if (steps.length === 1) steps.push({label: 'Posterior', val: p});
- else steps.push({label: 'Posterior', val: p});
+document.getElementById('btnConnect').addEventListener('click', () => {
+  connectMode = !connectMode;
+  connectSource = null;
+  document.getElementById('btnConnect').classList.toggle('active', connectMode);
+  connectHint.style.display = connectMode && selectedNode ? 'block' : 'none';
+  if (connectMode && selectedNode) connectSource = selectedNode.id;
+  draw();
+});
 
- const final = p;
- $('resultBig').textContent = (final * 100).toFixed(1) + '%';
- $('resultBig').style.color = probColor(final);
+document.getElementById('btnReset').addEventListener('click', () => {
+  nodes = []; edges = []; nextId = 1;
+  selectNode(null); selectEdge(null);
+  draw();
+});
 
- graphNodes = layoutNodes(steps);
- drawGraph();
+document.getElementById('btnPreset').addEventListener('click', loadPreset);
+
+function loadPreset() {
+  nodes = []; edges = []; nextId = 1;
+  selectNode(null); selectEdge(null);
+
+  const cx = W / 2, cy = H / 2 - 20;
+  const n1 = addNode('Удар по ОАЭ', cx - 160, cy - 100, 0.05);
+  const n2 = addNode('Перемирие сорвано', cx + 120, cy - 100, 0.40);
+  const n3 = addNode('Хуситы активны', cx - 160, cy + 40, 0.60);
+  const n4 = addNode('ОАЭ vs Иран', cx + 120, cy + 40, 0.35);
+  const n5 = addNode('Риск удара', cx, cy + 150, 0.5);
+
+  addEdge(n1.id, n5.id);
+  addEdge(n2.id, n5.id);
+  addEdge(n3.id, n5.id);
+  addEdge(n4.id, n5.id);
+
+  edges.forEach(e => { if (e.to === n5.id) { e.cpT = 0.8; e.cpF = 0.05; } });
+  draw();
 }
 
-function loadPreset(p) {
- evidences = []; eid = 0;
- if (p === 'med') { $('priorSlider').value = $('priorNum').value = 1; addEvidence('Test positive', 95, 5); }
- if (p === 'poker') { $('priorSlider').value = $('priorNum').value = 10; addEvidence('Evidence', 80, 20); }
- if (p === 'spam') { $('priorSlider').value = $('priorNum').value = 30; addEvidence('Spam signal', 90, 5); }
- if (p === 'iran') {
-  $('priorSlider').value = $('priorNum').value = 5;
-  addEvidence('Перемирие', 85, 15);
-  addEvidence('Хуситы', 75, 20);
-  addEvidence('ОАЭ санкц.', 70, 25);
-  addEvidence('ВМС Ормуз', 80, 10);
- }
- recalc();
-}
+// Init
+resize();
 
-function resetAll() {
- evidences = []; eid = 0;
- $('priorSlider').value = $('priorNum').value = 50;
- renderEvidences(); recalc();
-}
-
-window.addEventListener('resize', () => { graphNodes = layoutNodes(buildSteps()); drawGraph(); });
-
-function buildSteps() {
- let p = (parseFloat($('priorSlider').value) || 0) / 100;
- const steps = [{label: 'Prior', val: p}];
- for (const e of evidences) {
-  if (!e.enabled) continue;
-  const peh = (e.peh || 0) / 100;
-  const penh = (e.penh || 0) / 100;
-  const denom = peh * p + penh * (1 - p);
-  p = denom === 0 ? 0 : (peh * p) / denom;
-  steps.push({label: e.name || `E#${evidences.indexOf(e)+1}`, val: p});
- }
- steps.push({label: 'Posterior', val: p});
- return steps;
-}
-
-recalc();
-try { Telegram.WebApp.ready(); Telegram.WebApp.expand(); } catch(e){}
+// Telegram WebApp
+try { if (window.Telegram && Telegram.WebApp) { Telegram.WebApp.ready(); Telegram.WebApp.expand(); } } catch(e) {}
 </script>
 </body>
 </html>
