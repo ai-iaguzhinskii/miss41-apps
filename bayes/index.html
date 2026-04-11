@@ -57,6 +57,7 @@ input[type=text]{width:100%;background:var(--bg);border:1px solid var(--border);
  <button class="btn btn-outline btn-sm" onclick="loadPreset('med')">🏥 Медтест</button>
  <button class="btn btn-outline btn-sm" onclick="loadPreset('poker')">🃏 Покер</button>
  <button class="btn btn-outline btn-sm" onclick="loadPreset('spam')">📧 Спам</button>
+ <button class="btn btn-outline btn-sm" onclick="loadPreset('iran')">🚀 Иран/ОАЭ</button>
 </div>
 
 <div id="evidenceList"></div>
@@ -165,6 +166,13 @@ function loadPreset(p) {
  if (p === 'med') { $('priorSlider').value = $('priorNum').value = 1; addEvidence('Test positive', 95, 5); }
  if (p === 'poker') { $('priorSlider').value = $('priorNum').value = 10; addEvidence('Evidence', 80, 20); }
  if (p === 'spam') { $('priorSlider').value = $('priorNum').value = 30; addEvidence('Spam signal', 90, 5); }
+ if (p === 'iran') {
+  $('priorSlider').value = $('priorNum').value = 5;
+  addEvidence('Перемирие сорвалось', 80, 20);
+  addEvidence('Хуситы активизировались', 70, 25);
+  addEvidence('ОАЭ поддержали санкции', 65, 30);
+  addEvidence('Иранские ВМС у Ормуза', 75, 15);
+ }
  recalc();
 }
 
