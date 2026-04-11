@@ -300,7 +300,21 @@ function renderProps() {
       h += `<div class="prop-row"><label>Если «${esc(pName)}» случилось → вероятность <span class="val">${Math.round(pe.cpT*100)}%</span></label>`;
       h += `<input type="range" min="0" max="100" value="${Math.round(pe.cpT*100)}" data-ei="${i}" data-k="cpT" class="cpSlider"></div>`;
     });
-    h += `<div class="prop-row" style="margin-top:8px;padding:8px;background:var(--surface2);border-radius:8px"><label style="color:var(--accent);font-size:13px">Итоговая P(True): <strong>${Math.round(n.prob*100)}%</strong></label></div>`;
+    // General formula
+    h += `<div style="margin-top:10px;padding:10px;background:var(--surface2);border-radius:8px;font-size:12px;line-height:1.7">`;
+    h += `<div style="color:var(--accent);font-weight:600;margin-bottom:4px">Формула (Noisy-OR):</div>`;
+    h += `<div style="color:var(--text2);font-style:italic">P(H) = 1 − (1−λ) × ∏ᵢ (1 − cpTᵢ × P(Eᵢ))</div>`;
+    h += `<div style="color:var(--text2);font-size:11px;margin-top:2px">λ = фон &nbsp;|&nbsp; cpTᵢ = сила фактора &nbsp;|&nbsp; P(Eᵢ) = вер-сть фактора</div>`;
+    // Substituted values
+    const leak2 = n.leak ?? 0.02;
+    let formulaParts = parents.map(pe => {
+      const pn2 = nodes.find(x => x.id === pe.from);
+      const pName2 = pn2 ? pn2.name.substring(0,8) : '?';
+      return `(1−${Math.round(pe.cpT*100)}%×${Math.round((pn2?pn2.prob:0)*100)}%)`;
+    }).join(' × ');
+    h += `<div style="margin-top:6px;color:var(--text);font-size:11px">= 1 − (1−${Math.round(leak2*100)}%) × ${formulaParts || '…'}</div>`;
+    h += `<div style="margin-top:4px;color:var(--green);font-weight:700;font-size:14px">= ${Math.round(n.prob*100)}%</div>`;
+    h += `</div>`;
   }
   h += `<button id="deleteNodeBtn" onclick="deleteNode(${n.id})">🗑 Удалить узел</button>`;
   propsCont.innerHTML = h;
