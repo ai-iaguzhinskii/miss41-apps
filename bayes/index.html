@@ -100,27 +100,24 @@ function calcProbs() {
     const parents = edges.filter(e => e.to === id);
     if (parents.length === 0) {
       n.prob = n.prior;
-    } else if (parents.length === 1) {
-      const pe = parents[0];
-      const pn = nodes.find(x => x.id === pe.from);
-      n.prob = pe.cpT * pn.prob + pe.cpF * (1 - pn.prob);
     } else {
-      // Full enumeration over all 2^N parent state combinations
-      // For each combo: P(C|combo) = average of P(C|Pi=state_i) across all parents
+      // Noisy-OR with full enumeration over 2^N parent combos
+      const leak = n.leak ?? 0.02;
       const np = parents.length;
       const combos = 1 << np;
       let total = 0;
       for (let mask = 0; mask < combos; mask++) {
         let comboProb = 1;
-        let cpSum = 0;
+        let probChildFalse = 1 - leak; // start with (1 - leak)
         for (let j = 0; j < np; j++) {
           const pe = parents[j];
           const pn = nodes.find(x => x.id === pe.from);
           const parentTrue = (mask >> j) & 1;
           comboProb *= parentTrue ? pn.prob : (1 - pn.prob);
-          cpSum += parentTrue ? pe.cpT : pe.cpF;
+          if (parentTrue) probChildFalse *= (1 - pe.cpT);
         }
-        total += comboProb * (cpSum / np);
+        const pChildTrue = 1 - probChildFalse;
+        total += comboProb * pChildTrue;
       }
       n.prob = total;
     }
@@ -255,7 +252,7 @@ function addEdge(fromId, toId) {
   if (fromId === toId) return;
   if (edges.some(e => e.from === fromId && e.to === toId)) return;
   if (hasCycle(fromId, toId)) return;
-  edges.push({ from: fromId, to: toId, cpT: 0.8, cpF: 0.1 });
+  edges.push({ from: fromId, to: toId, cpT: 0.8 });
   draw();
 }
 
@@ -294,14 +291,16 @@ function renderProps() {
     h += `<div class="prop-row"><label>P(True) <span class="val">${Math.round(n.prior*100)}%</span></label>`;
     h += `<input type="range" min="0" max="100" value="${Math.round(n.prior*100)}" id="pPrior"></div>`;
   } else {
+    const leak = n.leak ?? 0.02;
+    h += `<div class="prop-row"><label>Фоновая вероятность (leak) <span class="val">${Math.round(leak*100)}%</span></label>`;
+    h += `<input type="range" min="0" max="20" value="${Math.round(leak*100)}" id="pLeak"></div>`;
     parents.forEach((pe, i) => {
       const pn = nodes.find(x => x.id === pe.from);
       const pName = pn ? pn.name : '?';
-      h += `<div class="prop-row"><label>Если «${esc(pName)}» случилось <span class="val">${Math.round(pe.cpT*100)}%</span></label>`;
+      h += `<div class="prop-row"><label>Если «${esc(pName)}» случилось → вероятность <span class="val">${Math.round(pe.cpT*100)}%</span></label>`;
       h += `<input type="range" min="0" max="100" value="${Math.round(pe.cpT*100)}" data-ei="${i}" data-k="cpT" class="cpSlider"></div>`;
-      h += `<div class="prop-row"><label>Если «${esc(pName)}» НЕ случилось <span class="val">${Math.round(pe.cpF*100)}%</span></label>`;
-      h += `<input type="range" min="0" max="100" value="${Math.round(pe.cpF*100)}" data-ei="${i}" data-k="cpF" class="cpSlider"></div>`;
     });
+    h += `<div class="prop-row" style="margin-top:8px;padding:8px;background:var(--surface2);border-radius:8px"><label style="color:var(--accent);font-size:13px">Итоговая P(True): <strong>${Math.round(n.prob*100)}%</strong></label></div>`;
   }
   h += `<button id="deleteNodeBtn" onclick="deleteNode(${n.id})">🗑 Удалить узел</button>`;
   propsCont.innerHTML = h;
@@ -314,6 +313,13 @@ function renderProps() {
     n.prior = priorIn.value / 100;
     priorIn.previousElementSibling.querySelector('.val').textContent = priorIn.value + '%';
     draw();
+  });
+
+  const leakIn = document.getElementById('pLeak');
+  if (leakIn) leakIn.addEventListener('input', () => {
+    n.leak = leakIn.value / 100;
+    leakIn.previousElementSibling.querySelector('.val').textContent = leakIn.value + '%';
+    draw(); renderProps();
   });
 
   document.querySelectorAll('.cpSlider').forEach(sl => {
@@ -335,7 +341,7 @@ function deleteNode(id) {
 function esc(s) { return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 
 function addNode(name, x, y, prior) {
-  const n = { id: nextId++, name: name || 'Узел ' + nextId, x: x || 50 + Math.random() * (W - 100), y: y || 40 + Math.random() * (H - 80), prior: prior ?? 0.5, prob: prior ?? 0.5 };
+  const n = { id: nextId++, name: name || 'Узел ' + nextId, x: x || 50 + Math.random() * (W - 100), y: y || 40 + Math.random() * (H - 80), prior: prior ?? 0.5, prob: prior ?? 0.5, leak: 0.02 };
   nodes.push(n);
   draw();
   return n;
@@ -458,18 +464,28 @@ function loadPreset() {
 
   const cx = W / 2, cy = H / 2 - 20;
   // Root узлы — наблюдаемые факты
-  const n1 = addNode('Перемирие сорвано', cx - 180, cy - 120, 0.40);
-  const n2 = addNode('Хуситы активны', cx, cy - 120, 0.60);
-  const n3 = addNode('ОАЭ vs Иран', cx + 180, cy - 120, 0.35);
+  const n1 = addNode('Базовая угроза', cx - 180, cy - 140, 0.05);
+  const n2 = addNode('Перемирие сорвано', cx + 60, cy - 140, 0.40);
+  const n3 = addNode('Хуситы активны', cx - 120, cy - 40, 0.60);
+  const n4 = addNode('ОАЭ vs Иран', cx + 180, cy - 40, 0.35);
   // Child узел — то что хотим посчитать
   const n5 = addNode('Удар по ОАЭ', cx, cy + 100, 0.05);
+  n5.leak = 0.02;
 
   addEdge(n1.id, n5.id);
   addEdge(n2.id, n5.id);
   addEdge(n3.id, n5.id);
+  addEdge(n4.id, n5.id);
 
-  // Если факт случился — вероятность удара 80%, если нет — 5%
-  edges.forEach(e => { if (e.to === n5.id) { e.cpT = 0.8; e.cpF = 0.05; } });
+  // cpT per parent
+  edges.forEach(e => {
+    if (e.to === n5.id) {
+      if (e.from === n1.id) e.cpT = 0.95;
+      else if (e.from === n2.id) e.cpT = 0.75;
+      else if (e.from === n3.id) e.cpT = 0.60;
+      else if (e.from === n4.id) e.cpT = 0.65;
+    }
+  });
   draw();
 }
 
