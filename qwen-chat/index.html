@@ -52,7 +52,7 @@ function send(){
   const el=addMsg('assistant','');
   typ.textContent='печатает...';
   let full='';
-  const wsUrl = location.hostname === 'localhost' ? 'ws://localhost:8766/ws/chat' : 'wss://' + location.hostname + '/ws/chat';
+  const wsUrl = 'wss://shades-aurora-illustrations-hawk.trycloudflare.com/ws/chat';
   ws=new WebSocket(wsUrl);
   ws.onopen=()=>ws.send(JSON.stringify({messages:history,max_tokens:1000}));
   ws.onmessage=e=>{
