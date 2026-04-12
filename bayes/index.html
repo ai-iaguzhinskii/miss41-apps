@@ -27,6 +27,24 @@ canvas{display:block;width:100%;height:100%}
 #deleteNodeBtn{background:var(--danger);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;margin-top:6px}
 #edgeDeleteBar{display:none;position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:var(--danger);color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;cursor:pointer;z-index:10;box-shadow:0 4px 16px rgba(0,0,0,.4)}
 #connectHint{display:none;position:absolute;top:50px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:6px 16px;border-radius:16px;font-size:12px;z-index:10;pointer-events:none}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal-card{background:var(--surface);border:1px solid #3a3a5a;border-radius:var(--radius);padding:20px;width:90%;max-width:360px;max-height:80vh;overflow-y:auto;position:relative}
+.modal-card h3{color:var(--accent);font-size:15px;margin-bottom:12px}
+.modal-close{position:absolute;top:10px;right:14px;background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer}
+.modal-input{width:100%;background:var(--surface2);border:1px solid #3a3a5a;color:var(--text);padding:8px 12px;border-radius:8px;font-size:14px;margin-bottom:12px}
+.modal-btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:13px;cursor:pointer;width:100%}
+.modal-btn:active{opacity:.8}
+.save-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border-radius:8px;margin-bottom:8px}
+.save-item .si-info{flex:1;min-width:0}
+.save-item .si-name{font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.save-item .si-date{font-size:11px;color:var(--text2)}
+.save-item button{background:var(--surface);border:1px solid #3a3a5a;color:var(--text);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;flex-shrink:0}
+.save-item button.si-del{color:var(--danger);border-color:var(--danger)}
+.save-empty{color:var(--text2);font-size:13px;text-align:center;padding:20px 0}
+#autosaveBanner{display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--accent);padding:8px 14px;border-radius:10px;font-size:12px;z-index:30;display:none;gap:8px;align-items:center;box-shadow:0 4px 16px rgba(0,0,0,.4)}
+#autosaveBanner button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer}
+#autosaveBanner .ab-skip{background:transparent;color:var(--text2);border:1px solid #3a3a5a}
 </style>
 </head>
 <body>
@@ -34,6 +52,8 @@ canvas{display:block;width:100%;height:100%}
   <button id="btnAdd">+ Узел</button>
   <button id="btnConnect">🔗</button>
   <button id="btnPreset">🇮🇷 Пресет</button>
+  <button id="btnSave">💾</button>
+  <button id="btnLoad">📂</button>
   <div class="sep"></div>
   <button id="btnReset">Reset</button>
 </div>
@@ -41,7 +61,10 @@ canvas{display:block;width:100%;height:100%}
   <canvas id="c"></canvas>
   <div id="edgeDeleteBar" onclick="deleteSelectedEdge()">🗑 Удалить связь</div>
   <div id="connectHint">Тапни на целевой узел</div>
+  <div id="autosaveBanner"><span>Восстановить автосохранение?</span><button onclick="restoreAutosave()">Да</button><button class="ab-skip" onclick="dismissAutosave()">Нет</button></div>
 </div>
+<div class="modal-overlay" id="saveModal"><div class="modal-card"><button class="modal-close" onclick="closeModal('saveModal')">✕</button><h3>💾 Сохранить граф</h3><input class="modal-input" id="saveName" placeholder="Название графа..."><button class="modal-btn" onclick="doSave()">Сохранить</button></div></div>
+<div class="modal-overlay" id="loadModal"><div class="modal-card"><button class="modal-close" onclick="closeModal('loadModal')">✕</button><h3>📂 Загрузить граф</h3><div id="loadList"></div></div></div>
 <div id="props">
   <div id="propsContent"></div>
 </div>
@@ -503,8 +526,96 @@ function loadPreset() {
   draw();
 }
 
+// === Save / Load / Autosave ===
+const SAVES_KEY = 'bayes_saves';
+const AUTO_KEY = 'bayes_autosave';
+const MAX_SAVES = 10;
+
+function serializeGraph() {
+  return { nodes: JSON.parse(JSON.stringify(nodes)), edges: JSON.parse(JSON.stringify(edges)), nextId };
+}
+
+function deserializeGraph(data) {
+  nodes = data.nodes || []; edges = data.edges || []; nextId = data.nextId || (nodes.length ? Math.max(...nodes.map(n=>n.id)) + 1 : 1);
+  selectedNode = null; selectedEdge = null;
+  propsEl.classList.remove('open'); edgeDelBar.style.display = 'none';
+  calcProbs(); draw();
+}
+
+function getSaves() { try { return JSON.parse(localStorage.getItem(SAVES_KEY)) || []; } catch { return []; } }
+function putSaves(s) { localStorage.setItem(SAVES_KEY, JSON.stringify(s)); }
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// Close on overlay click
+document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); }));
+
+document.getElementById('btnSave').addEventListener('click', () => { document.getElementById('saveName').value = ''; openModal('saveModal'); document.getElementById('saveName').focus(); });
+document.getElementById('btnLoad').addEventListener('click', () => { renderLoadList(); openModal('loadModal'); });
+
+function doSave() {
+  const name = document.getElementById('saveName').value.trim() || ('Граф ' + new Date().toLocaleString('ru'));
+  const saves = getSaves();
+  saves.unshift({ id: Date.now(), name, date: new Date().toISOString(), ...serializeGraph() });
+  while (saves.length > MAX_SAVES) saves.pop();
+  putSaves(saves);
+  closeModal('saveModal');
+}
+
+function renderLoadList() {
+  const saves = getSaves();
+  const el = document.getElementById('loadList');
+  if (!saves.length) { el.innerHTML = '<div class="save-empty">Нет сохранений</div>'; return; }
+  el.innerHTML = saves.map((s, i) => {
+    const d = new Date(s.date);
+    const ds = d.toLocaleDateString('ru') + ' ' + d.toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'});
+    return `<div class="save-item"><div class="si-info"><div class="si-name">${esc(s.name)}</div><div class="si-date">${ds}</div></div><button onclick="loadSave(${i})">Загрузить</button><button class="si-del" onclick="deleteSave(${i})">✕</button></div>`;
+  }).join('');
+}
+
+function loadSave(i) {
+  const saves = getSaves();
+  if (!saves[i]) return;
+  deserializeGraph(saves[i]);
+  closeModal('loadModal');
+}
+
+function deleteSave(i) {
+  const saves = getSaves();
+  saves.splice(i, 1);
+  putSaves(saves);
+  renderLoadList();
+}
+
+// Autosave on every change
+function autoSave() { try { localStorage.setItem(AUTO_KEY, JSON.stringify(serializeGraph())); } catch {} }
+let _asTimer = null;
+function scheduleAutosave() { if (_asTimer) return; _asTimer = setTimeout(() => { _asTimer = null; autoSave(); }, 500); }
+
+// Patch calcProbs to hook autosave after every draw cycle
+const _origCalcProbs = calcProbs;
+calcProbs = function() { _origCalcProbs(); scheduleAutosave(); };
+
+function restoreAutosave() {
+  try { const d = JSON.parse(localStorage.getItem(AUTO_KEY)); if (d) deserializeGraph(d); } catch {}
+  document.getElementById('autosaveBanner').style.display = 'none';
+}
+function dismissAutosave() { document.getElementById('autosaveBanner').style.display = 'none'; }
+
 // Init
 resize();
+
+// Check autosave
+try {
+  const as = localStorage.getItem(AUTO_KEY);
+  if (as && nodes.length === 0) {
+    const d = JSON.parse(as);
+    if (d && d.nodes && d.nodes.length > 0) {
+      document.getElementById('autosaveBanner').style.display = 'flex';
+    }
+  }
+} catch {}
 
 // Telegram WebApp
 try { if (window.Telegram && Telegram.WebApp) { Telegram.WebApp.ready(); Telegram.WebApp.expand(); } } catch(e) {}
