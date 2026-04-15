@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Gemma Chat</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0f0f0f;color:#e0e0e0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
@@ -27,6 +30,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0f0f0f;
 #messages::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:2px}
 
 .msg{max-width:84%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.6;word-wrap:break-word}
+.msg pre{background:#0d0d0d;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:6px 0;font-size:13px}
+.msg code{font-family:'SF Mono',Menlo,monospace;font-size:13px}
+.msg p{margin:0 0 6px}
+.msg p:last-child{margin:0}
+.msg ul,.msg ol{padding-left:18px;margin:4px 0}
 .user{align-self:flex-end;background:#166534;color:#dcfce7;border-bottom-right-radius:4px}
 .bot{align-self:flex-start;background:#1a1a1a;color:#e0e0e0;border-bottom-left-radius:4px;border:1px solid #222}
 .bot.error{background:#1a0a0a;border-color:#4a1a1a;color:#f87171}
@@ -135,6 +143,12 @@ function getWsUrl(){
   return 'wss://skirmish-avenue-contrite.ngrok-free.dev/ws/chat';
 }
 
+function renderMarkdown(el, text){
+  el.innerHTML = marked.parse(text);
+  el.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
 function send(){
   const t=inp.value.trim();
   if(!t||busy)return;
@@ -160,8 +174,7 @@ function send(){
     if(d.type==='token'){
       if(typ.textContent==='думает...')typ.textContent='пишет...';
       full+=d.text;
-      botEl.textContent=full;
-      msgs.scrollTop=msgs.scrollHeight;
+      renderMarkdown(botEl, full);
     }
     if(d.type==='done'){
       history.push({role:'assistant',content:full});
