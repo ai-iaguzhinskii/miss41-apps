@@ -132,8 +132,7 @@ function addThinking(){
 }
 
 function getWsUrl(){
-  const proto=location.protocol==='https:'?'wss':'ws';
-  return `${proto}://${location.host}/ws/chat`;
+  return 'wss://skirmish-avenue-contrite.ngrok-free.dev/ws/chat';
 }
 
 function send(){
