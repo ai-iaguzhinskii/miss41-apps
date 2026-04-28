@@ -48,6 +48,22 @@
       max-width: 480px;
       margin: 0 auto;
     }
+    .setup-header {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 8px;
+    }
+    .btn-leaderboard-corner {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--accent2);
+      font-size: 0.82rem;
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-leaderboard-corner:hover { background: rgba(124,58,237,0.15); }
     .player-inputs { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
     .player-row { display: flex; gap: 8px; align-items: center; }
     .player-row input {
@@ -89,6 +105,13 @@
       background: var(--card);
       color: var(--text);
       border: 1px solid var(--border);
+      margin-top: 8px;
+    }
+    .btn-danger {
+      background: rgba(239,68,68,0.15);
+      color: var(--danger);
+      border: 1px solid rgba(239,68,68,0.3);
+      margin-top: 8px;
     }
     .btn-add {
       background: none;
@@ -212,6 +235,49 @@
     .final-table-wrap { overflow-x: auto; margin-bottom: 16px; }
     .final-table td.winner-row { color: var(--accent2); font-weight: 700; }
 
+    /* Leaderboard screen */
+    .lb-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+    .lb-empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 40px 16px;
+      font-size: 0.95rem;
+    }
+    .lb-empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .lb-table-wrap { overflow-x: auto; margin-bottom: 16px; }
+    .lb-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+    .lb-table th {
+      color: var(--muted);
+      font-weight: 600;
+      text-align: center;
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .lb-table th:first-child { text-align: left; }
+    .lb-table td {
+      text-align: center;
+      padding: 7px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .lb-table td:first-child { text-align: left; font-weight: 600; }
+    .lb-table tr:last-child td { border-bottom: none; }
+    .lb-table tr.lb-top td { color: var(--accent2); }
+    .lb-rank { color: var(--muted); font-weight: 400; margin-right: 6px; font-size: 0.8rem; }
+    .lb-games-note {
+      color: var(--muted);
+      font-size: 0.78rem;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
     footer { text-align: center; color: rgba(255,255,255,0.2); font-size: 0.72rem; margin-top: 24px; }
 
     @media (max-width: 360px) {
@@ -227,6 +293,9 @@
   <h1>May I?</h1>
   <p class="subtitle">Score Tracker</p>
   <div class="setup-card">
+    <div class="setup-header">
+      <button class="btn-leaderboard-corner" onclick="showLeaderboard('setup')">📊 Leaderboard</button>
+    </div>
     <div class="section-label">Players (2–6)</div>
     <div class="player-inputs" id="player-inputs">
       <div class="player-row">
@@ -290,7 +359,20 @@
     <div class="final-table-wrap">
       <table id="final-table"></table>
     </div>
+    <button class="btn btn-secondary" onclick="showLeaderboard('end')">📊 Leaderboard</button>
     <button class="btn btn-primary" onclick="newGame()">New Game</button>
+  </div>
+  <footer>Miss.41</footer>
+</div>
+
+<!-- LEADERBOARD SCREEN -->
+<div id="screen-leaderboard" class="screen">
+  <h1>May I?</h1>
+  <p class="subtitle">All-Time Leaderboard</p>
+  <div class="lb-card">
+    <div id="lb-content"></div>
+    <button class="btn btn-danger" id="btn-clear-history" onclick="clearHistory()">🗑 Clear History</button>
+    <button class="btn btn-secondary" onclick="backFromLeaderboard()">← Back</button>
   </div>
   <footer>Miss.41</footer>
 </div>
@@ -313,6 +395,8 @@
     scores: [],       // scores[round][playerIdx] = number
     wentOut: [],      // wentOut[round] = playerIdx or -1
   };
+
+  let leaderboardReturnScreen = 'screen-setup';
 
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -403,7 +487,6 @@
   function nextRound() {
     const r = state.currentRound;
     // Read scores
-    let valid = true;
     state.players.forEach((name, i) => {
       const val = parseInt(document.getElementById(`score-input-${i}`).value) || 0;
       state.scores[r][i] = val;
@@ -449,6 +532,109 @@
     wrap.innerHTML = html;
   }
 
+  // ---- HISTORY / LEADERBOARD ----
+
+  function saveGameResult(winnerIdx) {
+    const playerData = state.players.map((name, i) => ({
+      name,
+      totalScore: getTotal(i),
+      won: i === winnerIdx
+    }));
+
+    const gameResult = {
+      date: new Date().toISOString(),
+      players: playerData,
+      winner: state.players[winnerIdx]
+    };
+
+    const history = JSON.parse(localStorage.getItem('mayi_history') || '[]');
+    history.push(gameResult);
+    localStorage.setItem('mayi_history', JSON.stringify(history));
+  }
+
+  function buildLeaderboardData() {
+    const history = JSON.parse(localStorage.getItem('mayi_history') || '[]');
+    const stats = {}; // name -> { games, wins, totalScore, bestScore }
+
+    history.forEach(game => {
+      game.players.forEach(p => {
+        if (!stats[p.name]) {
+          stats[p.name] = { games: 0, wins: 0, totalScore: 0, bestScore: Infinity };
+        }
+        const s = stats[p.name];
+        s.games++;
+        if (p.won) s.wins++;
+        s.totalScore += p.totalScore;
+        if (p.totalScore < s.bestScore) s.bestScore = p.totalScore;
+      });
+    });
+
+    return Object.entries(stats).map(([name, s]) => ({
+      name,
+      games: s.games,
+      wins: s.wins,
+      winRate: s.games > 0 ? (s.wins / s.games * 100).toFixed(0) : 0,
+      avgScore: s.games > 0 ? Math.round(s.totalScore / s.games) : 0,
+      bestScore: s.bestScore === Infinity ? '-' : s.bestScore
+    })).sort((a, b) => b.winRate - a.winRate || a.avgScore - b.avgScore);
+  }
+
+  function showLeaderboard(returnScreen) {
+    leaderboardReturnScreen = returnScreen === 'end' ? 'screen-end' : 'screen-setup';
+    const data = buildLeaderboardData();
+    const history = JSON.parse(localStorage.getItem('mayi_history') || '[]');
+    const container = document.getElementById('lb-content');
+    const clearBtn = document.getElementById('btn-clear-history');
+
+    if (data.length === 0) {
+      container.innerHTML = `
+        <div class="lb-empty">
+          <div class="lb-empty-icon">📊</div>
+          <div>No games recorded yet.</div>
+          <div style="margin-top:6px;font-size:0.82rem">Play a game to see your stats here!</div>
+        </div>`;
+      clearBtn.style.display = 'none';
+    } else {
+      clearBtn.style.display = '';
+      let html = `<div class="lb-games-note">${history.length} game${history.length !== 1 ? 's' : ''} recorded on this device</div>`;
+      html += `<div class="lb-table-wrap"><table class="lb-table">
+        <thead><tr>
+          <th>Player</th>
+          <th>Games</th>
+          <th>Wins</th>
+          <th>Win%</th>
+          <th>Avg Score</th>
+          <th>Best Score</th>
+        </tr></thead><tbody>`;
+      data.forEach((p, i) => {
+        const isTop = i === 0 && p.wins > 0;
+        html += `<tr class="${isTop ? 'lb-top' : ''}">
+          <td><span class="lb-rank">${i + 1}.</span>${p.name}${isTop ? ' 🏆' : ''}</td>
+          <td>${p.games}</td>
+          <td>${p.wins}</td>
+          <td>${p.winRate}%</td>
+          <td>${p.avgScore}</td>
+          <td>${p.bestScore}</td>
+        </tr>`;
+      });
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    }
+
+    showScreen('screen-leaderboard');
+  }
+
+  function backFromLeaderboard() {
+    showScreen(leaderboardReturnScreen);
+  }
+
+  function clearHistory() {
+    if (confirm('Clear all game history? This cannot be undone.')) {
+      localStorage.removeItem('mayi_history');
+      showLeaderboard(leaderboardReturnScreen === 'screen-end' ? 'end' : 'setup');
+    }
+  }
+
   // ---- END ----
   function showEndScreen() {
     // Find winner (lowest score)
@@ -458,6 +644,9 @@
       const total = getTotal(i);
       if (total < minScore) { minScore = total; winnerIdx = i; }
     });
+
+    // Save to history
+    saveGameResult(winnerIdx);
 
     document.getElementById('winner-name').textContent = `🏆 ${state.players[winnerIdx]}`;
     document.getElementById('winner-score').textContent = `${minScore} points — lowest score wins!`;
