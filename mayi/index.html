@@ -493,7 +493,7 @@
     });
 
     state.currentRound++;
-    if (state.currentRound >= 7) {
+    if (state.currentRound >= rounds.length) {
       showEndScreen();
     } else {
       renderGameScreen();
