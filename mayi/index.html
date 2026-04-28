@@ -247,10 +247,10 @@
 <!-- GAME SCREEN -->
 <div id="screen-game" class="screen">
   <h1>May I?</h1>
-  <p class="subtitle" id="game-subtitle">Round 1 of 7</p>
+  <p class="subtitle" id="game-subtitle">Round 1 of 8</p>
   <div class="game-layout">
     <div class="round-header">
-      <div class="round-num" id="round-label">Round 1 of 7</div>
+      <div class="round-num" id="round-label">Round 1 of 8</div>
       <div class="round-contract" id="round-contract">2 sets of 3</div>
       <div class="round-cards-note" id="round-cards-note">10 cards dealt</div>
     </div>
@@ -303,7 +303,8 @@
     { name: "3 sets of 3",          cards: 12 },
     { name: "2 sets + 1 run",       cards: 12 },
     { name: "1 set + 2 runs",       cards: 12 },
-    { name: "3 runs of 4",          cards: 14 },
+    { name: "1 run of 7",            cards: 14 },
+    { name: "3 runs of 4",          cards: 16 },
   ];
 
   let state = {
@@ -365,8 +366,8 @@
   function renderGameScreen() {
     const r = state.currentRound;
     const round = ROUNDS[r];
-    document.getElementById('round-label').textContent = `Round ${r+1} of 7`;
-    document.getElementById('game-subtitle').textContent = `Round ${r+1} of 7`;
+    document.getElementById('round-label').textContent = `Round ${r+1} of 8`;
+    document.getElementById('game-subtitle').textContent = `Round ${r+1} of 8`;
     document.getElementById('round-contract').textContent = round.name;
     document.getElementById('round-cards-note').textContent = `${round.cards} cards dealt`;
 
