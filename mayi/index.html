@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>May I? — Score Tracker</title>
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --surface: #16213e;
+      --card: #0f3460;
+      --accent: #7c3aed;
+      --accent2: #a855f7;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --success: #10b981;
+      --danger: #ef4444;
+      --border: rgba(124, 58, 237, 0.3);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      padding: 16px;
+    }
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      text-align: center;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 4px;
+    }
+    .subtitle { text-align: center; color: var(--muted); font-size: 0.85rem; margin-bottom: 20px; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* Setup */
+    .setup-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+    .player-inputs { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+    .player-row { display: flex; gap: 8px; align-items: center; }
+    .player-row input {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+    .player-row input:focus { outline: none; border-color: var(--accent2); }
+    .btn-remove {
+      background: none;
+      border: none;
+      color: var(--danger);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 4px;
+      line-height: 1;
+    }
+    .btn { 
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: white;
+      margin-top: 12px;
+    }
+    .btn-secondary {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-add {
+      background: none;
+      border: 1px dashed var(--border);
+      color: var(--accent2);
+      margin-top: 4px;
+    }
+    .section-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    /* Game screen */
+    .game-layout { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+    .round-header {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      border-radius: 14px;
+      padding: 14px 18px;
+      text-align: center;
+    }
+    .round-num { font-size: 0.8rem; font-weight: 600; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.1em; }
+    .round-contract { font-size: 1.05rem; font-weight: 700; margin-top: 2px; }
+    .round-cards-note { font-size: 0.78rem; opacity: 0.75; margin-top: 2px; }
+    .score-inputs {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .score-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .score-row:last-child { border-bottom: none; }
+    .player-name { flex: 1; font-size: 0.95rem; font-weight: 500; }
+    .score-input {
+      width: 90px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--text);
+      font-size: 1rem;
+      text-align: center;
+    }
+    .score-input:focus { outline: none; border-color: var(--accent2); }
+    .went-out-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 0.75rem;
+      padding: 6px 8px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .went-out-btn.active {
+      background: rgba(16,185,129,0.2);
+      border-color: var(--success);
+      color: var(--success);
+    }
+    .scoreboard {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      overflow-x: auto;
+    }
+    .scoreboard-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { color: var(--muted); font-weight: 600; text-align: center; padding: 4px 8px; }
+    th:first-child { text-align: left; }
+    td { text-align: center; padding: 5px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    td:first-child { text-align: left; font-weight: 500; }
+    tr.total-row td { font-weight: 700; color: var(--accent2); border-top: 1px solid var(--border); border-bottom: none; padding-top: 8px; }
+    tr:last-child td { border-bottom: none; }
+    .legend {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+    .legend-title { font-size: 0.78rem; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.07em; }
+    .legend-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 16px; font-size: 0.82rem; color: var(--muted); }
+    .legend-grid span { color: var(--text); font-weight: 500; }
+
+    /* End screen */
+    .end-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+    .winner-badge {
+      text-align: center;
+      padding: 20px;
+      background: linear-gradient(135deg, rgba(124,58,237,0.2), rgba(168,85,247,0.2));
+      border-radius: 12px;
+      margin-bottom: 16px;
+    }
+    .winner-crown { font-size: 2.5rem; }
+    .winner-name { font-size: 1.4rem; font-weight: 700; color: var(--accent2); margin-top: 6px; }
+    .winner-score { font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
+    .final-table-wrap { overflow-x: auto; margin-bottom: 16px; }
+    .final-table td.winner-row { color: var(--accent2); font-weight: 700; }
+
+    footer { text-align: center; color: rgba(255,255,255,0.2); font-size: 0.72rem; margin-top: 24px; }
+
+    @media (max-width: 360px) {
+      .score-input { width: 70px; }
+      .went-out-btn { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- SETUP SCREEN -->
+<div id="screen-setup" class="screen active">
+  <h1>May I?</h1>
+  <p class="subtitle">Score Tracker</p>
+  <div class="setup-card">
+    <div class="section-label">Players (2–6)</div>
+    <div class="player-inputs" id="player-inputs">
+      <div class="player-row">
+        <input type="text" placeholder="Player 1" value="">
+        <button class="btn-remove" onclick="removePlayer(this)" title="Remove">×</button>
+      </div>
+      <div class="player-row">
+        <input type="text" placeholder="Player 2" value="">
+        <button class="btn-remove" onclick="removePlayer(this)" title="Remove">×</button>
+      </div>
+    </div>
+    <button class="btn btn-add" id="btn-add-player" onclick="addPlayer()">+ Add Player</button>
+    <button class="btn btn-primary" onclick="startGame()">Start Game</button>
+  </div>
+  <footer>Miss.41</footer>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="screen-game" class="screen">
+  <h1>May I?</h1>
+  <p class="subtitle" id="game-subtitle">Round 1 of 7</p>
+  <div class="game-layout">
+    <div class="round-header">
+      <div class="round-num" id="round-label">Round 1 of 7</div>
+      <div class="round-contract" id="round-contract">2 sets of 3</div>
+      <div class="round-cards-note" id="round-cards-note">10 cards dealt</div>
+    </div>
+    <div class="score-inputs">
+      <div class="section-label">Enter scores (0 = went out first)</div>
+      <div id="score-rows"></div>
+    </div>
+    <button class="btn btn-primary" onclick="nextRound()">Next Round →</button>
+    <div class="scoreboard">
+      <div class="scoreboard-title">Scoreboard</div>
+      <div id="scoreboard-wrap"></div>
+    </div>
+    <div class="legend">
+      <div class="legend-title">Card Values</div>
+      <div class="legend-grid">
+        <div>2–9 → <span>face value</span></div>
+        <div>10/J/Q/K → <span>10 pts</span></div>
+        <div>Ace → <span>15 pts</span></div>
+        <div>Joker → <span>25 pts</span></div>
+      </div>
+    </div>
+  </div>
+  <footer>Miss.41</footer>
+</div>
+
+<!-- END SCREEN -->
+<div id="screen-end" class="screen">
+  <h1>May I?</h1>
+  <p class="subtitle">Game Over</p>
+  <div class="end-card">
+    <div class="winner-badge">
+      <div class="winner-crown">👑</div>
+      <div class="winner-name" id="winner-name"></div>
+      <div class="winner-score" id="winner-score"></div>
+    </div>
+    <div class="section-label">Final Scores</div>
+    <div class="final-table-wrap">
+      <table id="final-table"></table>
+    </div>
+    <button class="btn btn-primary" onclick="newGame()">New Game</button>
+  </div>
+  <footer>Miss.41</footer>
+</div>
+
+<script>
+  const ROUNDS = [
+    { name: "2 sets of 3",         cards: 10 },
+    { name: "1 set + 1 run",        cards: 10 },
+    { name: "2 runs of 4",          cards: 10 },
+    { name: "3 sets of 3",          cards: 12 },
+    { name: "2 sets + 1 run",       cards: 12 },
+    { name: "1 set + 2 runs",       cards: 12 },
+    { name: "3 runs of 4",          cards: 14 },
+  ];
+
+  let state = {
+    players: [],
+    currentRound: 0,  // 0-indexed
+    scores: [],       // scores[round][playerIdx] = number
+    wentOut: [],      // wentOut[round] = playerIdx or -1
+  };
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  // ---- SETUP ----
+  let playerCount = 2;
+  function addPlayer() {
+    if (playerCount >= 6) return;
+    playerCount++;
+    const div = document.createElement('div');
+    div.className = 'player-row';
+    div.innerHTML = `<input type="text" placeholder="Player ${playerCount}" value=""><button class="btn-remove" onclick="removePlayer(this)" title="Remove">×</button>`;
+    document.getElementById('player-inputs').appendChild(div);
+    updateAddBtn();
+  }
+  function removePlayer(btn) {
+    const rows = document.querySelectorAll('#player-inputs .player-row');
+    if (rows.length <= 2) return;
+    btn.parentElement.remove();
+    playerCount--;
+    updateAddBtn();
+    // re-label placeholders
+    document.querySelectorAll('#player-inputs .player-row input').forEach((inp, i) => {
+      if (!inp.value) inp.placeholder = `Player ${i+1}`;
+    });
+  }
+  function updateAddBtn() {
+    document.getElementById('btn-add-player').style.display = playerCount >= 6 ? 'none' : '';
+  }
+
+  function startGame() {
+    const inputs = document.querySelectorAll('#player-inputs .player-row input');
+    const players = [];
+    inputs.forEach((inp, i) => {
+      const name = inp.value.trim() || `Player ${i+1}`;
+      players.push(name);
+    });
+    if (players.length < 2) { alert('Need at least 2 players'); return; }
+    state.players = players;
+    state.currentRound = 0;
+    state.scores = [];
+    state.wentOut = [];
+    for (let r = 0; r < 7; r++) state.scores.push(new Array(players.length).fill(null));
+    showScreen('screen-game');
+    renderGameScreen();
+  }
+
+  // ---- GAME ----
+  function renderGameScreen() {
+    const r = state.currentRound;
+    const round = ROUNDS[r];
+    document.getElementById('round-label').textContent = `Round ${r+1} of 7`;
+    document.getElementById('game-subtitle').textContent = `Round ${r+1} of 7`;
+    document.getElementById('round-contract').textContent = round.name;
+    document.getElementById('round-cards-note').textContent = `${round.cards} cards dealt`;
+
+    // Score rows
+    const container = document.getElementById('score-rows');
+    container.innerHTML = '';
+    state.players.forEach((name, i) => {
+      const row = document.createElement('div');
+      row.className = 'score-row';
+      row.innerHTML = `
+        <div class="player-name">${name}</div>
+        <input class="score-input" type="number" id="score-input-${i}" min="0" value="0" placeholder="0">
+        <button class="went-out-btn" id="wentout-${i}" onclick="toggleWentOut(${i})">Went out</button>
+      `;
+      container.appendChild(row);
+    });
+
+    renderScoreboard();
+  }
+
+  function toggleWentOut(idx) {
+    const btn = document.getElementById(`wentout-${idx}`);
+    const input = document.getElementById(`score-input-${idx}`);
+    const isActive = btn.classList.toggle('active');
+    if (isActive) {
+      input.value = 0;
+      input.disabled = true;
+    } else {
+      input.disabled = false;
+    }
+  }
+
+  function nextRound() {
+    const r = state.currentRound;
+    // Read scores
+    let valid = true;
+    state.players.forEach((name, i) => {
+      const val = parseInt(document.getElementById(`score-input-${i}`).value) || 0;
+      state.scores[r][i] = val;
+    });
+
+    state.currentRound++;
+    if (state.currentRound >= 7) {
+      showEndScreen();
+    } else {
+      renderGameScreen();
+    }
+  }
+
+  function getTotal(playerIdx) {
+    let total = 0;
+    for (let r = 0; r < 7; r++) {
+      if (state.scores[r][playerIdx] !== null) total += state.scores[r][playerIdx];
+    }
+    return total;
+  }
+
+  function renderScoreboard() {
+    const wrap = document.getElementById('scoreboard-wrap');
+    const completedRounds = state.currentRound; // rounds already submitted
+    if (completedRounds === 0) {
+      wrap.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:8px">No scores yet</div>';
+      return;
+    }
+
+    let html = '<table><thead><tr><th>Player</th>';
+    for (let r = 0; r < completedRounds; r++) html += `<th>R${r+1}</th>`;
+    html += '<th>Total</th></tr></thead><tbody>';
+
+    state.players.forEach((name, i) => {
+      html += `<tr><td>${name}</td>`;
+      for (let r = 0; r < completedRounds; r++) {
+        const s = state.scores[r][i];
+        html += `<td>${s !== null ? s : '-'}</td>`;
+      }
+      html += `<td>${getTotal(i)}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  }
+
+  // ---- END ----
+  function showEndScreen() {
+    // Find winner (lowest score)
+    let minScore = Infinity;
+    let winnerIdx = 0;
+    state.players.forEach((name, i) => {
+      const total = getTotal(i);
+      if (total < minScore) { minScore = total; winnerIdx = i; }
+    });
+
+    document.getElementById('winner-name').textContent = `🏆 ${state.players[winnerIdx]}`;
+    document.getElementById('winner-score').textContent = `${minScore} points — lowest score wins!`;
+
+    // Build sorted final table
+    const playerData = state.players.map((name, i) => ({ name, total: getTotal(i), idx: i }));
+    playerData.sort((a, b) => a.total - b.total);
+
+    let html = '<thead><tr><th>#</th><th>Player</th>';
+    for (let r = 0; r < 7; r++) html += `<th>R${r+1}</th>`;
+    html += '<th>Total</th></tr></thead><tbody>';
+
+    playerData.forEach((p, rank) => {
+      const isWinner = p.idx === winnerIdx;
+      html += `<tr class="${isWinner ? 'winner-row' : ''}">`;
+      html += `<td>${rank+1}</td><td>${p.name}${isWinner ? ' 👑' : ''}</td>`;
+      for (let r = 0; r < 7; r++) {
+        html += `<td>${state.scores[r][p.idx] !== null ? state.scores[r][p.idx] : '-'}</td>`;
+      }
+      html += `<td><strong>${p.total}</strong></td></tr>`;
+    });
+    html += '</tbody>';
+    document.getElementById('final-table').innerHTML = html;
+
+    showScreen('screen-end');
+  }
+
+  function newGame() {
+    // Reset player inputs
+    const inputs = document.querySelectorAll('#player-inputs .player-row input');
+    // Keep player names for convenience
+    inputs.forEach((inp, i) => { inp.value = state.players[i] || ''; });
+    state = { players: [], currentRound: 0, scores: [], wentOut: [] };
+    showScreen('screen-setup');
+  }
+
+  // Telegram WebApp
+  if (window.Telegram && Telegram.WebApp) {
+    Telegram.WebApp.ready();
+    Telegram.WebApp.expand();
+  }
+</script>
+</body>
+</html>
