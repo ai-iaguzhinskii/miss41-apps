@@ -441,7 +441,7 @@
     state.currentRound = 0;
     state.scores = [];
     state.wentOut = [];
-    for (let r = 0; r < 7; r++) state.scores.push(new Array(players.length).fill(null));
+    for (let r = 0; r < ROUNDS.length; r++) state.scores.push(new Array(players.length).fill(null));
     showScreen('screen-game');
     renderGameScreen();
   }
@@ -493,7 +493,7 @@
     });
 
     state.currentRound++;
-    if (state.currentRound >= rounds.length) {
+    if (state.currentRound >= ROUNDS.length) {
       showEndScreen();
     } else {
       renderGameScreen();
@@ -502,8 +502,8 @@
 
   function getTotal(playerIdx) {
     let total = 0;
-    for (let r = 0; r < 7; r++) {
-      if (state.scores[r][playerIdx] !== null) total += state.scores[r][playerIdx];
+    for (let r = 0; r < ROUNDS.length; r++) {
+      if (state.scores[r] && state.scores[r][playerIdx] !== null) total += state.scores[r][playerIdx];
     }
     return total;
   }
@@ -656,14 +656,14 @@
     playerData.sort((a, b) => a.total - b.total);
 
     let html = '<thead><tr><th>#</th><th>Player</th>';
-    for (let r = 0; r < 7; r++) html += `<th>R${r+1}</th>`;
+    for (let r = 0; r < ROUNDS.length; r++) html += `<th>R${r+1}</th>`;
     html += '<th>Total</th></tr></thead><tbody>';
 
     playerData.forEach((p, rank) => {
       const isWinner = p.idx === winnerIdx;
       html += `<tr class="${isWinner ? 'winner-row' : ''}">`;
       html += `<td>${rank+1}</td><td>${p.name}${isWinner ? ' 👑' : ''}</td>`;
-      for (let r = 0; r < 7; r++) {
+      for (let r = 0; r < ROUNDS.length; r++) {
         html += `<td>${state.scores[r][p.idx] !== null ? state.scores[r][p.idx] : '-'}</td>`;
       }
       html += `<td><strong>${p.total}</strong></td></tr>`;
