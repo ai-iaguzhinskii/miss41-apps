@@ -142,7 +142,7 @@
         <p>Gemma 4 31B CRACK (no limits)</p>
       </div>
     </a>
-    <a class="card" id="cams" href="https://cams.mr41.xyz:8444/">
+    <a class="card" id="cams" href="cams/index.html">
       <div class="card-icon">📹</div>
       <div class="card-text">
         <h2>Камеры</h2>
@@ -154,11 +154,6 @@
     if (window.Telegram && Telegram.WebApp) {
       Telegram.WebApp.ready();
       Telegram.WebApp.expand();
-      var d = Telegram.WebApp.initData;
-      if (d) {
-        var c = document.getElementById('cams');
-        c.href = 'https://cams.mr41.xyz:8444/?tgWebAppData=' + encodeURIComponent(d);
-      }
     }
   </script>
 </body>

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>Камеры</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, 'SF Pro', 'Segoe UI', Roboto, sans-serif;
+    background: var(--tg-theme-bg-color, #1a1a2e);
+    color: var(--tg-theme-text-color, #e0e0e0);
+    min-height: 100vh;
+  }
+  header {
+    padding: 16px 16px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    background: linear-gradient(135deg, #a855f7, #ec4899);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  #t {
+    font-variant-numeric: tabular-nums;
+    opacity: .55;
+    font-size: 13px;
+    color: var(--tg-theme-hint-color, #888);
+  }
+  .wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 8px 12px 24px;
+  }
+  .tile {
+    position: relative;
+    background: #000;
+    border-radius: 16px;
+    overflow: hidden;
+    aspect-ratio: 16/9;
+    cursor: pointer;
+  }
+  .tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .lbl {
+    position: absolute;
+    left: 10px;
+    top: 9px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(0,0,0,.6);
+    font-size: 12px;
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+  }
+  .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #37d67a;
+    margin-right: 6px;
+    flex-shrink: 0;
+  }
+  .off .dot { background: #e5484d; }
+  .tile.loading::after {
+    content: 'подключение…';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: var(--tg-theme-hint-color, #888);
+  }
+  .tile.off::after {
+    content: 'нет сигнала';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: #e5484d;
+    background: rgba(0,0,0,.4);
+  }
+  .tile.full {
+    position: fixed;
+    inset: 0;
+    z-index: 9;
+    border-radius: 0;
+    aspect-ratio: auto;
+    background: #000;
+  }
+  .tile.full img { object-fit: contain; }
+  #msg {
+    padding: 60px 24px;
+    text-align: center;
+    opacity: .75;
+    line-height: 1.6;
+    font-size: 15px;
+  }
+  @media (min-width: 760px) {
+    .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+<header><h1>📹 Камеры</h1><span id="t"></span></header>
+<div class="wrap" id="g" hidden></div>
+<div id="msg"></div>
+<script>
+const API = 'https://cams.mr41.xyz:8444';
+const CAMS = [
+  { id: 'cam1', name: 'Въезд' },
+  { id: 'cam2', name: 'Двор' },
+  { id: 'cam3', name: 'Задворки' },
+];
+
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+const msgEl = document.getElementById('msg');
+const gridEl = document.getElementById('g');
+
+function showMessage(text) {
+  msgEl.textContent = text;
+  msgEl.hidden = false;
+  gridEl.hidden = true;
+}
+
+function renderTiles(token) {
+  gridEl.innerHTML = '';
+  CAMS.forEach(c => {
+    const tile = document.createElement('div');
+    tile.className = 'tile loading';
+    tile.innerHTML = `<img alt="${c.name}"><span class="lbl"><i class="dot"></i>${c.name}</span>`;
+    const img = tile.querySelector('img');
+    img.onload = () => tile.classList.remove('loading', 'off');
+    img.onerror = () => { tile.classList.remove('loading'); tile.classList.add('off'); };
+    img.src = `${API}/stream/${c.id}?k=${encodeURIComponent(token)}&_=${Date.now()}`;
+    tile.onclick = () => tile.classList.toggle('full');
+    gridEl.appendChild(tile);
+  });
+  gridEl.hidden = false;
+  msgEl.hidden = true;
+}
+
+async function init() {
+  const initData = tg?.initData;
+  if (!initData) {
+    showMessage('Нет данных Telegram. Открой это приложение через кнопку в Telegram.');
+    return;
+  }
+  let token;
+  try {
+    const r = await fetch(`${API}/token?tgWebAppData=${encodeURIComponent(initData)}`);
+    if (!r.ok) {
+      showMessage('Доступ запрещён. Эта камера — только для владельца.');
+      return;
+    }
+    const data = await r.json();
+    token = data.token;
+  } catch (e) {
+    showMessage('Не удалось связаться с сервером камер. Попробуй позже.');
+    return;
+  }
+  if (!token) {
+    showMessage('Сервер не выдал токен доступа.');
+    return;
+  }
+  renderTiles(token);
+}
+
+init();
+
+setInterval(() => {
+  document.getElementById('t').textContent = new Date().toLocaleTimeString('ru-RU');
+}, 1000);
+</script>
+</body>
+</html>
